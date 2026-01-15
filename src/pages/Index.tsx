@@ -1,13 +1,33 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from 'react';
+import { ProjectProvider } from '@/contexts/ProjectContext';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { ChatPanel } from '@/components/chat/ChatPanel';
+import { OrdersPanel } from '@/components/orders/OrdersPanel';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
+
+type TabType = 'chat' | 'orders' | 'settings';
+
+function Dashboard() {
+  const [activeTab, setActiveTab] = useState<TabType>('chat');
+
+  return (
+    <div className="flex h-screen bg-background">
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {activeTab === 'chat' && <ChatPanel />}
+        {activeTab === 'orders' && <OrdersPanel />}
+        {activeTab === 'settings' && <SettingsPanel />}
+      </main>
+    </div>
+  );
+}
 
 const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
+    <ProjectProvider>
+      <Dashboard />
+    </ProjectProvider>
   );
 };
 
