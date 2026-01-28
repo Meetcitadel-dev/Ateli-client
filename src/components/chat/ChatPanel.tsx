@@ -33,6 +33,7 @@ export function ChatPanel() {
       type,
       timestamp: new Date(),
       isFromAteli: false,
+      isRead: true,
     };
     
     setMessages(prev => [...prev, newMessage]);
@@ -49,6 +50,7 @@ export function ChatPanel() {
         type: 'text',
         timestamp: new Date(),
         isFromAteli: true,
+        isRead: false,
       };
       setMessages(prev => [...prev, ateliResponse]);
     }, 1500);
