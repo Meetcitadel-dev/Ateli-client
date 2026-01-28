@@ -215,9 +215,9 @@ export const mockOrders: Order[] = [
     items: orderItems1,
     totalAmount: 32160.00,
     status: 'pending',
-    approvals: [
-      { userId: 'user-1', userName: 'Alex Johnson', action: 'approved', timestamp: new Date('2024-03-11') },
-      { userId: 'user-2', userName: 'Sarah Chen', action: 'pending' },
+  approvals: [
+      { userId: 'user-1', userName: 'Alex Johnson', action: 'pending' },
+      { userId: 'user-2', userName: 'Sarah Chen', action: 'approved', timestamp: new Date('2024-03-11') },
       { userId: 'user-3', userName: 'Marcus Brown', action: 'pending' },
     ],
     createdBy: 'ateli-admin',
