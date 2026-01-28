@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useProject } from '@/contexts/ProjectContext';
 import { OrderCard } from './OrderCard';
+import { OrderDetailView } from './OrderDetailView';
 import { mockOrders } from '@/data/mockData';
 import { Order, OrderStatus } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -14,16 +15,18 @@ import {
   Clock,
   CheckCircle2,
   Truck,
-  Plus
+  Plus,
+  AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 const statusTabs: { id: OrderStatus | 'all'; label: string; icon: React.ElementType }[] = [
   { id: 'all', label: 'All Orders', icon: Package },
-  { id: 'pending', label: 'Pending', icon: Clock },
-  { id: 'approved', label: 'Approved', icon: CheckCircle2 },
-  { id: 'shipped', label: 'In Transit', icon: Truck },
+  { id: 'pending_confirmation', label: 'Pending', icon: Clock },
+  { id: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
+  { id: 'dispatched', label: 'In Transit', icon: Truck },
+  { id: 'clarification_requested', label: 'Clarification', icon: AlertCircle },
 ];
 
 export function OrdersPanel() {
@@ -31,6 +34,7 @@ export function OrdersPanel() {
   const [activeStatus, setActiveStatus] = useState<OrderStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const projectOrders = orders.filter(order => order.projectId === currentProject?.id);
   
@@ -51,7 +55,7 @@ export function OrdersPanel() {
         return { 
           ...order, 
           approvals: updatedApprovals,
-          status: allApproved ? 'approved' as const : order.status
+          status: allApproved ? 'confirmed' as OrderStatus : order.status
         };
       }
       return order;
@@ -64,7 +68,7 @@ export function OrdersPanel() {
       if (order.id === orderId) {
         return { 
           ...order, 
-          status: 'rejected' as const,
+          status: 'cancelled' as OrderStatus,
           approvals: order.approvals.map(a => 
             a.userId === 'user-1' ? { ...a, action: 'rejected' as const, timestamp: new Date() } : a
           )
@@ -75,11 +79,63 @@ export function OrdersPanel() {
     toast.error('Order rejected');
   };
 
+  const handleConfirmItem = (orderId: string, itemId: string) => {
+    setOrders(prev => prev.map(order => {
+      if (order.id === orderId) {
+        const updatedItems = order.items.map(item =>
+          item.id === itemId ? { ...item, isConfirmed: true, confirmedBy: 'user-1', confirmedAt: new Date() } : item
+        );
+        const allConfirmed = updatedItems.every(item => item.isConfirmed);
+        return {
+          ...order,
+          items: updatedItems,
+          status: allConfirmed ? 'completed' as OrderStatus : order.status,
+          deliveryOutcome: allConfirmed ? 'completed' as const : order.deliveryOutcome,
+        };
+      }
+      return order;
+    }));
+    toast.success('Item confirmed');
+  };
+
+  const handlePayment = (orderId: string, method: string) => {
+    setOrders(prev => prev.map(order => {
+      if (order.id === orderId) {
+        return {
+          ...order,
+          payment: {
+            method: method as any,
+            status: 'completed',
+            amountPaid: order.totalAmount,
+            paidBy: 'user-1',
+            paidAt: new Date(),
+          }
+        };
+      }
+      return order;
+    }));
+  };
+
   if (!currentProject) {
     return (
       <div className="flex-1 flex items-center justify-center bg-muted/30">
         <p className="text-muted-foreground">Select a project to view orders</p>
       </div>
+    );
+  }
+
+  // Show order detail view if an order is selected
+  if (selectedOrder) {
+    const currentOrder = orders.find(o => o.id === selectedOrder.id) || selectedOrder;
+    return (
+      <OrderDetailView
+        order={currentOrder}
+        onBack={() => setSelectedOrder(null)}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onConfirmItem={handleConfirmItem}
+        onPayment={handlePayment}
+      />
     );
   }
 
@@ -101,7 +157,7 @@ export function OrdersPanel() {
         </div>
 
         {/* Status Tabs */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {statusTabs.map((tab) => {
             const Icon = tab.icon;
             const count = tab.id === 'all' 
@@ -164,6 +220,7 @@ export function OrdersPanel() {
                 order={order}
                 onApprove={handleApprove}
                 onReject={handleReject}
+                onClick={(o) => setSelectedOrder(o)}
               />
             ))}
           </div>

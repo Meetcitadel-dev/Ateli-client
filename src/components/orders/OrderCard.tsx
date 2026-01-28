@@ -12,48 +12,78 @@ import {
   Truck, 
   CheckCircle2,
   ChevronRight,
-  Users
+  AlertCircle,
+  Loader2,
+  MapPin,
+  PauseCircle,
+  RefreshCw,
+  XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { currentUser } from '@/data/mockData';
 
 interface OrderCardProps {
   order: Order;
-  onClick?: () => void;
+  onClick?: (order: Order) => void;
   onApprove?: (orderId: string) => void;
   onReject?: (orderId: string) => void;
 }
 
 const statusConfig: Record<OrderStatus, { label: string; icon: React.ElementType; className: string }> = {
-  pending: { 
-    label: 'Pending Approval', 
-    icon: Clock, 
-    className: 'bg-status-pending/10 text-status-pending border-status-pending/20' 
+  clarification_requested: { 
+    label: 'Clarification Requested', 
+    icon: AlertCircle, 
+    className: 'bg-warning/10 text-warning border-warning/20' 
   },
-  approved: { 
-    label: 'Approved', 
-    icon: CheckCircle2, 
-    className: 'bg-status-approved/10 text-status-approved border-status-approved/20' 
-  },
-  rejected: { 
-    label: 'Rejected', 
-    icon: X, 
-    className: 'bg-status-rejected/10 text-status-rejected border-status-rejected/20' 
-  },
-  processing: { 
-    label: 'Processing', 
+  order_received: { 
+    label: 'Order Received', 
     icon: Package, 
     className: 'bg-info/10 text-info border-info/20' 
   },
-  shipped: { 
-    label: 'Shipped', 
+  pending_confirmation: { 
+    label: 'Pending Confirmation', 
+    icon: Clock, 
+    className: 'bg-warning/10 text-warning border-warning/20' 
+  },
+  confirmed: { 
+    label: 'Confirmed', 
+    icon: CheckCircle2, 
+    className: 'bg-success/10 text-success border-success/20' 
+  },
+  material_loading: { 
+    label: 'Material Loading', 
+    icon: Loader2, 
+    className: 'bg-info/10 text-info border-info/20' 
+  },
+  dispatched: { 
+    label: 'Dispatched', 
     icon: Truck, 
     className: 'bg-info/10 text-info border-info/20' 
   },
   delivered: { 
     label: 'Delivered', 
+    icon: MapPin, 
+    className: 'bg-success/10 text-success border-success/20' 
+  },
+  partially_completed: { 
+    label: 'Partially Completed', 
+    icon: RefreshCw, 
+    className: 'bg-warning/10 text-warning border-warning/20' 
+  },
+  completed: { 
+    label: 'Completed', 
     icon: CheckCircle2, 
-    className: 'bg-status-delivered/10 text-status-delivered border-status-delivered/20' 
+    className: 'bg-success/10 text-success border-success/20' 
+  },
+  cancelled: { 
+    label: 'Cancelled', 
+    icon: XCircle, 
+    className: 'bg-destructive/10 text-destructive border-destructive/20' 
+  },
+  on_hold: { 
+    label: 'On Hold', 
+    icon: PauseCircle, 
+    className: 'bg-muted text-muted-foreground border-muted-foreground/20' 
   },
 };
 
@@ -70,10 +100,10 @@ export function OrderCard({ order, onClick, onApprove, onReject }: OrderCardProp
   return (
     <Card 
       className={cn(
-        "group cursor-pointer transition-all duration-200 hover:shadow-medium border-border/60",
+        "group cursor-pointer transition-all duration-200 hover:shadow-lg border-border/60",
         "hover:border-accent/30"
       )}
-      onClick={onClick}
+      onClick={() => onClick?.(order)}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -131,33 +161,35 @@ export function OrderCard({ order, onClick, onApprove, onReject }: OrderCardProp
               {order.items.length} item{order.items.length > 1 ? 's' : ''}
             </p>
             <p className="text-sm text-muted-foreground">
-              ${order.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              ₹{order.totalAmount.toLocaleString()}
             </p>
           </div>
         </div>
 
         {/* Approval Progress */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-1.5">
-              {order.approvals.map((approval) => (
-                <Avatar key={approval.userId} className="w-6 h-6 border-2 border-background">
-                  <AvatarFallback className={cn(
-                    "text-[10px] font-medium",
-                    approval.action === 'approved' && "bg-status-approved text-status-approved-foreground",
-                    approval.action === 'rejected' && "bg-status-rejected text-status-rejected-foreground",
-                    approval.action === 'pending' && "bg-muted text-muted-foreground"
-                  )}>
-                    {approval.userName.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
+        {order.approvals.length > 0 && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-1.5">
+                {order.approvals.map((approval) => (
+                  <Avatar key={approval.userId} className="w-6 h-6 border-2 border-background">
+                    <AvatarFallback className={cn(
+                      "text-[10px] font-medium",
+                      approval.action === 'approved' && "bg-success text-success-foreground",
+                      approval.action === 'rejected' && "bg-destructive text-destructive-foreground",
+                      approval.action === 'pending' && "bg-muted text-muted-foreground"
+                    )}>
+                      {approval.userName.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {approvedCount}/{totalApprovers} approved
+              </span>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {approvedCount}/{totalApprovers} approved
-            </span>
           </div>
-        </div>
+        )}
       </CardContent>
 
       {canApprove && (

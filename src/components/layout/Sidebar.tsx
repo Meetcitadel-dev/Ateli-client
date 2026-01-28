@@ -9,7 +9,12 @@ import {
   Building2,
   Users,
   MapPin,
-  Plus
+  Plus,
+  Bell,
+  Wallet,
+  BarChart3,
+  ArrowLeft,
+  Cog
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -19,33 +24,54 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { currentUser } from '@/data/mockData';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { currentUser, mockNotifications } from '@/data/mockData';
+
+type TabType = 'chat' | 'orders' | 'settings' | 'wallet' | 'analytics' | 'project-config';
 
 interface SidebarProps {
-  activeTab: 'chat' | 'orders' | 'settings';
-  onTabChange: (tab: 'chat' | 'orders' | 'settings') => void;
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
+  onShowNotifications: () => void;
+  onBackToProjects: () => void;
 }
 
-export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, onShowNotifications, onBackToProjects }: SidebarProps) {
   const { currentProject, getCurrentUserProjects, setCurrentProject } = useProject();
   const userProjects = getCurrentUserProjects();
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
 
+  const unreadNotifications = mockNotifications.filter(n => !n.isRead).length;
+
   const navItems = [
     { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
-    { id: 'orders' as const, label: 'Orders', icon: ShoppingCart },
+    { id: 'orders' as const, label: 'Orders', icon: ShoppingCart, badge: 2 },
+    { id: 'wallet' as const, label: 'Wallet', icon: Wallet },
+    { id: 'analytics' as const, label: 'Analytics', icon: BarChart3 },
+    { id: 'project-config' as const, label: 'Project Settings', icon: Cog },
     { id: 'settings' as const, label: 'Settings', icon: Settings },
   ];
 
   return (
     <aside className="w-72 h-screen bg-sidebar text-sidebar-foreground flex flex-col">
-      {/* Logo */}
+      {/* Logo & Back */}
       <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-            <span className="text-sidebar-primary-foreground font-bold text-lg">A</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
+              <span className="text-sidebar-primary-foreground font-bold text-lg">A</span>
+            </div>
+            <span className="text-xl font-semibold tracking-tight">Ateli</span>
           </div>
-          <span className="text-xl font-semibold tracking-tight">Ateli</span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onBackToProjects}
+            className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
         </div>
       </div>
 
@@ -99,7 +125,12 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 )}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{project.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium truncate">{project.name}</p>
+                    {project.status === 'archived' && (
+                      <Badge variant="secondary" className="text-xs">Archived</Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     <Users className="w-3 h-3 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">
@@ -119,7 +150,7 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -135,20 +166,36 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             >
               <Icon className="w-5 h-5" />
               <span className="font-medium">{item.label}</span>
-              {item.id === 'orders' && (
+              {item.badge && (
                 <span className={cn(
                   "ml-auto text-xs font-semibold px-2 py-0.5 rounded-full",
                   activeTab === item.id
                     ? "bg-sidebar-primary-foreground/20"
                     : "bg-sidebar-accent text-sidebar-foreground/60"
                 )}>
-                  2
+                  {item.badge}
                 </span>
               )}
             </button>
           );
         })}
       </nav>
+
+      {/* Notifications */}
+      <div className="p-4 border-t border-sidebar-border">
+        <button
+          onClick={onShowNotifications}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+        >
+          <Bell className="w-5 h-5" />
+          <span className="font-medium">Notifications</span>
+          {unreadNotifications > 0 && (
+            <Badge className="ml-auto bg-destructive text-destructive-foreground">
+              {unreadNotifications}
+            </Badge>
+          )}
+        </button>
+      </div>
 
       {/* User Profile */}
       <div className="p-4 border-t border-sidebar-border">
@@ -161,7 +208,9 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{currentUser.name}</p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">{currentUser.email}</p>
+            <p className="text-xs text-sidebar-foreground/60 truncate">
+              ₹{currentUser.walletBalance.toLocaleString()} wallet
+            </p>
           </div>
         </div>
       </div>
