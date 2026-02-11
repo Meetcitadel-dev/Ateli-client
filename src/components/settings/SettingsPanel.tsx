@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { useProject } from '@/contexts/ProjectContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,11 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { 
-  Building2, 
-  MapPin, 
-  Users, 
-  Mail, 
+import {
+  Building2,
+  MapPin,
+  Users,
+  Mail,
   Crown,
   UserPlus,
   Settings,
@@ -21,76 +22,195 @@ import {
 import { format } from 'date-fns';
 
 export function SettingsPanel() {
-  const { currentProject } = useProject();
+  const { currentProject, updateProjectSettings } = useProject();
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    siteAddress: '',
+    description: '',
+    budget: 0,
+    gstEnabled: false
+  });
+
+  useEffect(() => {
+    if (currentProject) {
+      setFormData({
+        name: currentProject.name || '',
+        siteAddress: currentProject.siteAddress || '',
+        description: currentProject.description || '',
+        budget: currentProject.budget || 0,
+        gstEnabled: currentProject.gstConfig?.enabled || false
+      });
+    }
+  }, [currentProject]);
+
+  const handleSave = async () => {
+    if (!currentProject) return;
+    setIsSaving(true);
+    try {
+      await updateProjectSettings({
+        name: formData.name,
+        siteAddress: formData.siteAddress,
+        description: formData.description,
+        budget: formData.budget,
+        gstConfig: {
+          ...currentProject.gstConfig,
+          enabled: formData.gstEnabled
+        }
+      });
+      // success toast is in the context
+    } catch (error) {
+      console.error('Settings save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!currentProject) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-muted/30">
-        <p className="text-muted-foreground">Select a project to view settings</p>
+      <div className="flex-1 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
+            <Settings className="w-8 h-8 text-muted-foreground/50" />
+          </div>
+          <p className="text-muted-foreground font-medium">Select a project to view settings</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background">
-      <div className="max-w-4xl mx-auto p-8">
+    <div className="flex-1 overflow-y-auto bg-background scrollbar-thin">
+      <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-foreground">Project Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your project details and team members
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Project Settings</h1>
+          <p className="text-muted-foreground">
+            Administrative controls and team management for {currentProject.name}
           </p>
         </div>
 
         <div className="space-y-6">
           {/* Project Details */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/60 shadow-sm overflow-hidden">
+            <CardHeader className="bg-muted/30">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-accent" />
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle>Project Details</CardTitle>
-                  <CardDescription>Basic information about your project</CardDescription>
+                  <CardTitle className="text-lg">Project Details</CardTitle>
+                  <CardDescription>Core information and location</CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
+            <CardContent className="p-6 space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="projectName">Project Name</Label>
-                  <Input id="projectName" defaultValue={currentProject.name} />
+                  <Label htmlFor="projectName" className="text-sm font-medium">Project Name</Label>
+                  <Input
+                    id="projectName"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="bg-background/50 border-border focus:ring-primary/20 h-11"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="createdAt">Created</Label>
-                  <Input 
-                    id="createdAt" 
-                    value={format(new Date(currentProject.createdAt), 'MMMM d, yyyy')} 
-                    disabled 
+                  <Label htmlFor="createdAt" className="text-sm font-medium">Creation Date</Label>
+                  <Input
+                    id="createdAt"
+                    value={format(new Date(currentProject.createdAt), 'MMMM d, yyyy')}
+                    disabled
+                    className="bg-muted/50 border-border/50 h-11 opacity-70"
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="siteAddress">
-                  <span className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
-                    Site Address
-                  </span>
+                <Label htmlFor="siteAddress" className="flex items-center gap-2 text-sm font-medium">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  Site Address
                 </Label>
-                <Input id="siteAddress" defaultValue={currentProject.siteAddress} />
+                <Input
+                  id="siteAddress"
+                  value={formData.siteAddress}
+                  onChange={(e) => setFormData(prev => ({ ...prev, siteAddress: e.target.value }))}
+                  className="bg-background/50 border-border focus:ring-primary/20 h-11"
+                />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input id="description" defaultValue={currentProject.description || ''} placeholder="Add a description..." />
-              </div>
-              <div className="flex justify-end">
-                <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                  Save Changes
-                </Button>
+                <Label htmlFor="description" className="text-sm font-medium">About the Project</Label>
+                <Input
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Describe the scope, goals or special instructions..."
+                  className="bg-background/50 border-border focus:ring-primary/20 h-11"
+                />
               </div>
             </CardContent>
           </Card>
+
+          {/* Budget & Billing */}
+          <Card className="border-border/60 shadow-sm overflow-hidden">
+            <CardHeader className="bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-orange-500" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Budget & Billing</CardTitle>
+                  <CardDescription>Financial controls and GST configuration</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="budget" className="text-sm font-medium">Estimated Budget (₹)</Label>
+                  <Input
+                    id="budget"
+                    type="number"
+                    value={formData.budget}
+                    onChange={(e) => setFormData(prev => ({ ...prev, budget: Number(e.target.value) }))}
+                    className="bg-background/50 border-border focus:ring-primary/20 h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Taxation</Label>
+                  <div className="flex items-center gap-4 h-11 px-4 rounded-xl border border-border bg-background/50">
+                    <span className="text-sm">GST Billing</span>
+                    <Button
+                      variant={formData.gstEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFormData(prev => ({ ...prev, gstEnabled: !prev.gstEnabled }))}
+                      className={formData.gstEnabled ? "bg-primary text-primary-foreground" : ""}
+                    >
+                      {formData.gstEnabled ? 'Enabled' : 'Disabled'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-12 h-12 shadow-lg shadow-primary/20 rounded-xl transition-all active:scale-95"
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Settings className="w-5 h-5 animate-spin" />
+                  Saving...
+                </span>
+              ) : (
+                'Save All Settings'
+              )}
+            </Button>
+          </div>
 
           {/* Team Members */}
           <Card>
@@ -114,20 +234,20 @@ export function SettingsPanel() {
             <CardContent>
               <div className="space-y-3">
                 {currentProject.members.map((member) => (
-                  <div 
+                  <div
                     key={member.userId}
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="w-10 h-10">
-                        <AvatarImage src={member.user.avatar} alt={member.user.name} />
+                        <AvatarImage src={member.user?.avatar} alt={member.user?.name || 'User'} />
                         <AvatarFallback className="bg-primary text-primary-foreground">
-                          {member.user.name.split(' ').map(n => n[0]).join('')}
+                          {(member.user?.name || 'User').split(' ').map(n => n[0]).join('')}
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-foreground">{member.user.name}</p>
+                          <p className="font-medium text-foreground">{member.user?.name || 'Loading...'}</p>
                           {member.role === 'owner' && (
                             <Badge variant="secondary" className="text-xs gap-1">
                               <Crown className="w-3 h-3" />
@@ -137,7 +257,7 @@ export function SettingsPanel() {
                         </div>
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Mail className="w-3 h-3" />
-                          {member.user.email}
+                          {member.user?.email || member.userId}
                         </p>
                       </div>
                     </div>

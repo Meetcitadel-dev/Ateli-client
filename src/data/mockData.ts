@@ -1,10 +1,11 @@
-import { 
-  User, 
-  Project, 
-  Chat, 
-  ChatMessage, 
-  Order, 
-  OrderItem, 
+
+import {
+  User,
+  Project,
+  Chat,
+  ChatMessage,
+  Order,
+  OrderItem,
   Notification,
   WalletTransaction,
   Invoice,
@@ -14,10 +15,9 @@ import {
 export const currentUser: User = {
   id: 'user-1',
   name: 'Alex Johnson',
-  email: 'alex@example.com',
-  phone: '+91 98765 43210',
+  phone: '9876543210',
   avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
-  role: 'user',
+  role: 'client',
   walletBalance: 15000,
 };
 
@@ -36,28 +36,25 @@ export const mockUsers: User[] = [
   {
     id: 'user-2',
     name: 'Sarah Chen',
-    email: 'sarah@example.com',
-    phone: '+91 98765 43211',
+    phone: '9876543211',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-    role: 'user',
+    role: 'client',
     walletBalance: 5000,
   },
   {
     id: 'user-3',
     name: 'Marcus Brown',
-    email: 'marcus@example.com',
-    phone: '+91 98765 43212',
+    phone: '9876543212',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus',
-    role: 'user',
+    role: 'client',
     walletBalance: 8000,
   },
   {
     id: 'user-4',
     name: 'Emily Davis',
-    email: 'emily@example.com',
-    phone: '+91 98765 43213',
+    phone: '9876543213',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
-    role: 'user',
+    role: 'client',
     walletBalance: 12000,
   },
 ];
@@ -167,53 +164,20 @@ export const mockChatMessages: ChatMessage[] = [
     isFromAteli: true,
     isRead: true,
   },
-  {
-    id: 'msg-4',
-    chatId: 'chat-1',
-    senderId: 'user-1',
-    senderName: 'Alex Johnson',
-    content: "We'd like a mix - maybe 12 standing desks and 8 traditional ones. Also need ergonomic chairs for everyone.",
-    type: 'text',
-    timestamp: new Date('2024-03-10T09:15:00'),
-    isFromAteli: false,
-    isRead: true,
-  },
-  {
-    id: 'msg-5',
-    chatId: 'chat-1',
-    senderId: 'ateli-admin',
-    senderName: 'Ateli Team',
-    content: "Perfect! I'll put together a proposal with our best options. I've created an order for you to review with your team. You'll find it in your project's Orders section.",
-    type: 'text',
-    timestamp: new Date('2024-03-10T09:25:00'),
-    isFromAteli: true,
-    isRead: true,
-  },
-  {
-    id: 'msg-6',
-    chatId: 'chat-1',
-    senderId: 'user-1',
-    senderName: 'Alex Johnson',
-    content: 'That sounds great, thank you! When can we expect delivery?',
-    type: 'text',
-    timestamp: new Date('2024-03-10T09:30:00'),
-    isFromAteli: false,
-    isRead: true,
-  },
 ];
 
-export const mockChats: Chat[] = [
-  {
-    id: 'chat-1',
-    userId: 'user-1',
-    projectId: 'project-1',
-    messages: mockChatMessages,
-    lastMessage: mockChatMessages[mockChatMessages.length - 1],
-    unreadCount: 0,
-    createdAt: new Date('2024-03-10'),
-    updatedAt: new Date('2024-03-10'),
-  },
-];
+export const mockChat: Chat = {
+  id: 'chat-1',
+  userId: 'user-1',
+  projectId: 'project-1',
+  messages: mockChatMessages,
+  lastMessage: mockChatMessages[mockChatMessages.length - 1],
+  unreadCount: 0,
+  createdAt: new Date('2024-03-10'),
+  updatedAt: new Date('2024-03-10'),
+};
+
+export const mockChats: Chat[] = [mockChat];
 
 const orderItems1: OrderItem[] = [
   {
