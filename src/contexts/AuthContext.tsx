@@ -68,19 +68,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     useEffect(() => {
-        // Check initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session?.user) {
-                fetchAndSetProfile(session.user.id, {
-                    phone: session.user.phone,
-                    email: session.user.email
-                });
-            } else {
+        const initAuth = async () => {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) throw error;
+
+                if (session?.user) {
+                    await fetchAndSetProfile(session.user.id, {
+                        phone: session.user.phone,
+                        email: session.user.email
+                    });
+                } else {
+                    setIsLoading(false);
+                }
+            } catch (err) {
+                console.error('Auth initialization error:', err);
                 setIsLoading(false);
             }
-        });
+        };
 
-        // Listen for auth changes
+        initAuth();
+
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session?.user) {
                 fetchAndSetProfile(session.user.id, {
