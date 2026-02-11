@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowRight, Phone, Mail, User as UserIcon } from 'lucide-react';
+import { Loader2, ArrowRight, Phone, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
@@ -14,26 +14,21 @@ export default function LoginPage() {
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
-    const [name, setName] = useState('');
-    const [step, setStep] = useState<'input' | 'otp' | 'onboarding'>('input');
+    const [step, setStep] = useState<'input' | 'otp'>('input');
     const [isLoading, setIsLoading] = useState(false);
 
-    const { login, loginWithEmail, verifyOtp, verifyEmailOtp, completeOnboarding, isAuthenticated, needsOnboarding, user, isLoading: authLoading } = useAuth();
+    const { login, loginWithEmail, verifyOtp, verifyEmailOtp, isAuthenticated, isLoading: authLoading } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
     const from = (location.state as any)?.from?.pathname || "/projects";
 
-    // Detect if we should show onboarding step AFTER auth is confirmed
+    // Auto-redirect when authenticated
     useEffect(() => {
         if (isAuthenticated && !authLoading) {
-            if (needsOnboarding) {
-                setStep('onboarding');
-            } else if (step !== 'onboarding') {
-                navigate(from, { replace: true });
-            }
+            navigate(from, { replace: true });
         }
-    }, [isAuthenticated, authLoading, needsOnboarding, navigate, from, step]);
+    }, [isAuthenticated, authLoading, navigate, from]);
 
     const handleSendOTP = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,21 +70,6 @@ export default function LoginPage() {
             } else {
                 await verifyEmailOtp(email, otp);
             }
-            // useEffect will handle navigation or onboarding step
-        } catch (error) {
-            // Error managed in AuthContext
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleCompleteOnboarding = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        setIsLoading(true);
-        try {
-            await completeOnboarding(name);
-            navigate(from, { replace: true });
         } catch (error) {
             // Error managed in AuthContext
         } finally {
@@ -113,12 +93,11 @@ export default function LoginPage() {
                     </div>
                     <div className="space-y-1 text-center">
                         <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
-                            {step === 'onboarding' ? "Welcome to Ateli" : "Login to Ateli"}
+                            Login to Ateli
                         </CardTitle>
                         <CardDescription className="text-muted-foreground">
                             {step === 'input' && (loginType === 'phone' ? "Enter your mobile number to login" : "Admin login using your @ateli.co.in email")}
                             {step === 'otp' && `Verify the code sent to ${loginType === 'phone' ? phone : email}`}
-                            {step === 'onboarding' && "Please tell us your name to get started"}
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -218,37 +197,6 @@ export default function LoginPage() {
                                 disabled={isLoading || otp.length < 6}
                             >
                                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Verify & Login"}
-                            </Button>
-                        </CardContent>
-                    </form>
-                )}
-
-                {step === 'onboarding' && (
-                    <form onSubmit={handleCompleteOnboarding}>
-                        <CardContent className="space-y-5">
-                            <div className="space-y-2">
-                                <Label htmlFor="name" className="text-foreground/80">Full Name</Label>
-                                <div className="relative">
-                                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                    <Input
-                                        id="name"
-                                        type="text"
-                                        placeholder="Enter your full name"
-                                        required
-                                        autoFocus
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        className="h-11 pl-10 bg-background/50 border-border focus:ring-primary/20 rounded-xl"
-                                    />
-                                </div>
-                            </div>
-                            <Button
-                                type="submit"
-                                className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-md transition-all group"
-                                disabled={isLoading || !name.trim()}
-                            >
-                                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Start Using Ateli"}
-                                {!isLoading && <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                             </Button>
                         </CardContent>
                     </form>

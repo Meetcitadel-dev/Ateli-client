@@ -46,15 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 };
                 setUser(userData);
 
-                // If name is "New User" or empty/default, they need onboarding
-                if (!profile.name || profile.name === 'New User' || profile.name.trim() === '') {
-                    setNeedsOnboarding(true);
-                } else {
-                    setNeedsOnboarding(false);
-                }
+                setNeedsOnboarding(false);
             } else {
-                // Profile doesn't exist yet (auth trigger might have a slight delay)
-                setNeedsOnboarding(true);
+                setNeedsOnboarding(false);
                 const basicUser: User = {
                     id: userId,
                     name: 'New User',
