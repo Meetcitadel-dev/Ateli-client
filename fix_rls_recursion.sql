@@ -42,7 +42,7 @@ BEGIN
         NEW.email,
         NEW.phone,
         CASE 
-            WHEN NEW.email IS NOT NULL AND NEW.email LIKE '%@ateli.co.in' 
+            WHEN NEW.email IS NOT NULL AND (NEW.email LIKE '%@ateli.co.in' OR NEW.email LIKE '%@mastersunion.org')
             THEN 'admin'
             ELSE 'client'
         END

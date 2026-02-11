@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     email: metadata.email || '',
                     avatar: '',
                     walletBalance: 0,
-                    role: (metadata.email?.endsWith('@ateli.co.in')) ? 'admin' : 'client'
+                    role: (metadata.email?.endsWith('@ateli.co.in') || metadata.email?.endsWith('@mastersunion.org')) ? 'admin' : 'client'
                 };
                 setUser(basicUser);
             }

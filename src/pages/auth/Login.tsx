@@ -45,8 +45,8 @@ export default function LoginPage() {
                 setIsLoading(false);
             }
         } else {
-            if (!email.endsWith('@ateli.co.in')) {
-                toast.error("Admin login requires an @ateli.co.in email");
+            if (!email.endsWith('@ateli.co.in') && !email.endsWith('@mastersunion.org')) {
+                toast.error("Admin login requires an authorized email domain");
                 return;
             }
             setIsLoading(true);
