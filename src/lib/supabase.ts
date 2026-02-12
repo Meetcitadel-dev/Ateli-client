@@ -8,7 +8,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.log('Current Env:', import.meta.env);
 }
 
+// Auto-fix URL if user only provided the Project ID (e.g., "abcdef...")
+const finalSupabaseUrl = supabaseUrl?.startsWith('http')
+    ? supabaseUrl
+    : `https://${supabaseUrl}.supabase.co`;
+
 export const supabase = createClient(
-    supabaseUrl || 'https://placeholder.supabase.co',
+    finalSupabaseUrl || 'https://placeholder.supabase.co',
     supabaseAnonKey || 'placeholder'
 );
