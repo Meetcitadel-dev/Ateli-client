@@ -103,6 +103,70 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [currentProject]);
 
+  // Global listener for new chat messages to update unread counts and show push notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`global-messages-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages'
+        },
+        (payload) => {
+          const newMsg = payload.new as any;
+
+          // If the message is from us, ignore
+          if (newMsg.sender_id === user.id) return;
+          if (newMsg.read_by && newMsg.read_by.includes(user.id)) return;
+
+          // Increment the project's unreadCount
+          setProjects(prev => prev.map(p => {
+            if (p.id === newMsg.project_id) {
+              return { ...p, unreadCount: (p.unreadCount || 0) + 1 };
+            }
+            return p;
+          }));
+
+          // Try to find the project name for a better notification
+          const project = projects.find(p => p.id === newMsg.project_id);
+          const projectNameStr = project ? ` in ${project.name}` : '';
+          const title = `New message from ${newMsg.sender_name || 'someone'}${projectNameStr}`;
+
+          // Try to deduce body based on type or content
+          let body = newMsg.content;
+          if (!body || body.trim() === '') {
+            if (newMsg.type === 'image') body = '📷 Sent an image';
+            else if (newMsg.type === 'voice') body = '🎤 Sent a voice message';
+            else if (newMsg.type === 'document') body = '📄 Sent a document';
+            else if (newMsg.type === 'location') body = '📍 Shared a location';
+            else if (newMsg.type === 'order') body = '📦 Sent an order update';
+            else body = 'New message';
+          }
+
+          // Show browser notification if permitted and in background
+          if ("Notification" in window && Notification.permission === "granted") {
+            if (document.hidden) {
+              new Notification(title, { body });
+            }
+          }
+
+          // Only show toast if we are NOT actively looking at this exact project right now, or if hidden
+          if (document.hidden || currentProject?.id !== newMsg.project_id) {
+            toast.info(title, { description: body });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, currentProject, projects]);
+
   const getCurrentUserProjects = useCallback(() => {
     return projects;
   }, [projects]);

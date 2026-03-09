@@ -1,12 +1,13 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Notification } from '@/types';
+import { Notification as AppNotification } from '@/types';
 import { db } from '@/services/db';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
+import { toast } from 'sonner';
 
 interface NotificationContextType {
-    notifications: Notification[];
+    notifications: AppNotification[];
     unreadCount: number;
     isLoading: boolean;
     markAsRead: (id: string) => Promise<void>;
@@ -18,7 +19,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchNotifications = useCallback(async () => {
@@ -42,6 +43,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         fetchNotifications();
     }, [fetchNotifications]);
 
+    // Request notification permissions
+    useEffect(() => {
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission().catch(err => console.error("Notification permission error:", err));
+        }
+    }, []);
+
     // Realtime subscription for notifications
     useEffect(() => {
         if (!user) return;
@@ -61,13 +69,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                         const newNotif = payload.new;
                         setNotifications(prev => {
                             if (prev.some(n => n.id === newNotif.id)) return prev;
-                            const processedNotif: Notification = {
+                            const processedNotif: AppNotification = {
                                 ...newNotif,
                                 isRead: newNotif.is_read,
                                 orderId: newNotif.order_id,
                                 projectId: newNotif.project_id,
                                 createdAt: new Date(newNotif.created_at)
                             };
+
+                            // Show browser notification if permitted and in background
+                            if ("Notification" in window && Notification.permission === "granted") {
+                                if (document.hidden) {
+                                    new Notification(processedNotif.title, { body: processedNotif.message });
+                                }
+                            }
+                            // Always show a toast
+                            toast.info(processedNotif.title, { description: processedNotif.message });
+
                             return [processedNotif, ...prev];
                         });
                     } else if (payload.eventType === 'UPDATE') {
