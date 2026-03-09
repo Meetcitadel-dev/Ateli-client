@@ -2,21 +2,26 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { NotificationsPanel } from '@/components/notifications/NotificationsPanel';
 import { useProject } from '@/contexts/ProjectContext';
 import { useView } from '@/contexts/ViewContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Notification } from '@/types';
 import { Menu, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout() {
     const [showNotifications, setShowNotifications] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { currentProject } = useProject();
+    const { currentProject, setCurrentProject, projects, isLoading } = useProject();
+    const { isAdmin } = useView();
+    const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const isMobile = useIsMobile();
@@ -26,20 +31,52 @@ export default function DashboardLayout() {
         setIsSidebarOpen(false);
     }, [location.pathname]);
 
-    if (!currentProject) {
+    // Allow specific admin routes even without a current project
+    const isBroadcastPage = location.pathname === '/dashboard/broadcast';
+
+    // If data is still loading, show a centering loader
+    if (isLoading) {
+        return (
+            <div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
+                <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+                <p className="text-muted-foreground text-xs font-black uppercase tracking-[0.2em]">Initializing Ateli...</p>
+            </div>
+        );
+    }
+
+    // If no project selected and NOT on a page that allows it, redirect
+    if (!currentProject && !isBroadcastPage) {
         return <Navigate to="/projects" replace />;
     }
 
     const handleNotificationClick = (notification: Notification) => {
         setShowNotifications(false);
-        if (notification.orderId) {
-            navigate('/dashboard/orders');
+
+        // Switch project if needed
+        if (notification.projectId && (!currentProject || notification.projectId !== currentProject.id)) {
+            const project = projects.find(p => p.id === notification.projectId);
+            if (project) {
+                setCurrentProject(project);
+            }
+        }
+
+        // Navigate based on type
+        if (notification.type === 'message') {
+            navigate('/dashboard/chat');
+        } else if (notification.type.startsWith('order_')) {
+            if (notification.orderId) {
+                navigate(`/dashboard/orders/${notification.orderId}`);
+            } else {
+                navigate('/dashboard/orders');
+            }
+        } else {
+            navigate('/dashboard/chat');
         }
     };
 
     return (
         <div className="flex h-screen bg-background text-foreground overflow-hidden">
-            {/* Desktop Sidebar */}
+            {/* Desktop Sidebar - always shown on desktop */}
             {!isMobile && (
                 <div className={cn(
                     "transition-all duration-300 ease-in-out border-r border-sidebar-border bg-sidebar relative flex-shrink-0",
@@ -60,34 +97,48 @@ export default function DashboardLayout() {
                 </div>
             )}
 
-            {/* Mobile Navigation Trigger & Content Wrap */}
-            <main className="flex-1 flex flex-col overflow-hidden relative">
+            {/* Mobile Sidebar for admin – sheet based */}
+            {isMobile && isAdmin && (
+                <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+                    <SheetContent side="left" className="p-0 w-72 bg-sidebar border-r-0">
+                        <Sidebar
+                            onShowNotifications={() => {
+                                setShowNotifications(true);
+                                setIsSidebarOpen(false);
+                            }}
+                            isCollapsed={false}
+                            isMobileView
+                        />
+                    </SheetContent>
+                </Sheet>
+            )}
+
+            {/* Main content */}
+            <main className={cn(
+                "flex-1 flex flex-col overflow-hidden relative",
+                isMobile && !isAdmin && "pb-16" // space for bottom nav
+            )}>
                 {/* Mobile Header */}
                 {isMobile && (
-                    <header className="h-16 border-b bg-card flex items-center justify-between px-4 shrink-0 z-40">
+                    <header className="h-14 border-b bg-card flex items-center justify-between px-4 shrink-0 z-40">
                         <div className="flex items-center gap-3">
-                            <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
-                                <SheetTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                                        <Menu className="w-6 h-6" />
-                                    </Button>
-                                </SheetTrigger>
-                                <SheetContent side="left" className="p-0 w-72 bg-sidebar border-r-0">
-                                    <Sidebar
-                                        onShowNotifications={() => {
-                                            setShowNotifications(true);
-                                            setIsSidebarOpen(false);
-                                        }}
-                                        isCollapsed={false}
-                                        isMobileView
-                                    />
-                                </SheetContent>
-                            </Sheet>
+                            {isAdmin && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-muted-foreground hover:text-foreground"
+                                    onClick={() => setIsSidebarOpen(true)}
+                                >
+                                    <Menu className="w-6 h-6" />
+                                </Button>
+                            )}
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                                    <span className="text-white font-bold text-sm">A</span>
+                                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+                                    <span className="text-white font-bold text-xs">A</span>
                                 </div>
-                                <span className="font-semibold truncate max-w-[120px]">{currentProject.name}</span>
+                                <span className="font-semibold truncate max-w-[140px]">
+                                    {currentProject?.name || 'Ateli'}
+                                </span>
                             </div>
                         </div>
 
@@ -108,6 +159,11 @@ export default function DashboardLayout() {
                 </div>
             </main>
 
+            {/* Mobile Bottom Nav – only for non-admin users on mobile */}
+            {isMobile && !isAdmin && (
+                <MobileBottomNav />
+            )}
+
             {/* Notifications Panel - Overlay */}
             {showNotifications && (
                 <NotificationsPanel
@@ -115,32 +171,6 @@ export default function DashboardLayout() {
                     onNotificationClick={handleNotificationClick}
                 />
             )}
-
-            {/* Admin/User View Toggle */}
-            <ViewToggle />
-        </div>
-    );
-}
-
-function ViewToggle() {
-    const { viewMode, toggleViewMode } = useView();
-
-    return (
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-card border shadow-lg rounded-full p-1 pl-3 pr-1">
-            <span className="text-xs font-semibold text-muted-foreground mr-1">
-                View: {viewMode === 'admin' ? 'Ateli Admin' : 'Client'}
-            </span>
-            <Button
-                size="sm"
-                variant={viewMode === 'admin' ? "default" : "outline"}
-                className={cn(
-                    "h-7 rounded-full text-xs px-3",
-                    viewMode === 'admin' ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
-                )}
-                onClick={toggleViewMode}
-            >
-                Switch
-            </Button>
         </div>
     );
 }

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Notification, NotificationType } from '@/types';
-import { mockNotifications } from '@/data/mockData';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -46,19 +46,7 @@ const notificationColors: Record<NotificationType, string> = {
 };
 
 export function NotificationsPanel({ onClose, onNotificationClick }: NotificationsPanelProps) {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-  
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, isRead: true } : n)
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  };
+  const { notifications, unreadCount, isLoading: loading, markAsRead, markAllAsRead } = useNotifications();
 
   const handleClick = (notification: Notification) => {
     markAsRead(notification.id);
@@ -93,7 +81,12 @@ export function NotificationsPanel({ onClose, onNotificationClick }: Notificatio
       {/* Notifications List */}
       <ScrollArea className="flex-1">
         <div className="divide-y divide-border">
-          {notifications.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-muted-foreground">Loading notifications...</p>
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Bell className="w-12 h-12 text-muted-foreground/30 mb-4" />
               <p className="text-muted-foreground">No notifications yet</p>
@@ -102,7 +95,7 @@ export function NotificationsPanel({ onClose, onNotificationClick }: Notificatio
             notifications.map((notification) => {
               const Icon = notificationIcons[notification.type];
               const colorClass = notificationColors[notification.type];
-              
+
               return (
                 <button
                   key={notification.id}

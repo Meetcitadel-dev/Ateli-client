@@ -21,6 +21,7 @@ export interface OrderApproval {
 
 export type OrderStatus =
     | 'clarification_requested'
+    | 'cart'
     | 'order_received'
     | 'pending_confirmation'
     | 'confirmed'
@@ -39,7 +40,7 @@ export interface DriverInfo {
 }
 
 export interface PaymentInfo {
-    method: 'pay_on_delivery' | 'pay_now' | 'wallet' | 'payment_link';
+    method: 'pay_on_delivery' | 'pay_now' | 'wallet' | 'payment_link' | 'zoho_online';
     status: 'pending' | 'partial' | 'completed';
     amountPaid: number;
     transactionId?: string;
@@ -66,6 +67,8 @@ export interface Order {
     notes?: string;
     driverInfo?: DriverInfo;
     payment?: PaymentInfo;
+    // Cart flag – when admin creates a 'cart' for user review
+    isCart?: boolean;
     // Delivery outcome
     deliveryOutcome?: 'completed' | 'partially_completed' | 'cancelled' | 'rescheduled';
     pendingItems?: string[]; // Item IDs pending

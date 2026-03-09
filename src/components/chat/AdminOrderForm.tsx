@@ -23,11 +23,14 @@ import {
 
 interface AdminOrderFormProps {
     onSubmit: (items: any[]) => void;
+    onSubmitCart: (items: any[]) => void;
     onCancel: () => void;
+    initialItems?: { name: string; quantity: number; price: number; id: string }[];
+    title?: string;
 }
 
-export function AdminOrderForm({ onSubmit, onCancel }: AdminOrderFormProps) {
-    const [selectedItems, setSelectedItems] = useState<{ name: string; quantity: number; price: number; id: string }[]>([]);
+export function AdminOrderForm({ onSubmit, onSubmitCart, onCancel, initialItems = [], title }: AdminOrderFormProps) {
+    const [selectedItems, setSelectedItems] = useState<{ name: string; quantity: number; price: number; id: string }[]>(initialItems);
 
     // Config state
     const [selectedProductName, setSelectedProductName] = useState("");
@@ -87,9 +90,9 @@ export function AdminOrderForm({ onSubmit, onCancel }: AdminOrderFormProps) {
 
     return (
         <Card className="w-full h-full flex flex-col border-none shadow-none bg-background">
-            <CardHeader className="px-6 py-4 border-b flex flex-row items-center justify-between pr-14">
+            <CardHeader className="px-6 py-4 border-b border-sidebar-border flex flex-row items-center justify-between pr-14 shrink-0">
                 <CardTitle className="text-xl font-bold tracking-tight">
-                    {showMobileCart ? 'Current Order' : 'Create Order'}
+                    {title || (showMobileCart ? 'Current Order' : 'Create Order')}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                     {selectedItems.length > 0 && !showMobileCart && (
@@ -275,9 +278,14 @@ export function AdminOrderForm({ onSubmit, onCancel }: AdminOrderFormProps) {
                                 <p className="text-2xl font-black text-primary tracking-tighter">₹{totalEstimate.toLocaleString()}</p>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <Button variant="outline" onClick={onCancel} className="h-11 font-bold uppercase tracking-widest text-[10px] border-2">Cancel</Button>
-                            <Button onClick={handleSubmit} disabled={selectedItems.length === 0} className="h-11 font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20">Create Order</Button>
+                        <div className="flex flex-col gap-3">
+                            <Button onClick={handleSubmit} disabled={selectedItems.length === 0} className="h-11 font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 bg-primary">
+                                Create Order
+                            </Button>
+                            <Button onClick={() => onSubmitCart(selectedItems.map(item => ({ name: item.name, description: 'Cart Item', quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity, id: item.id })))} disabled={selectedItems.length === 0} variant="outline" className="h-11 font-bold uppercase tracking-widest text-[10px] border-2 border-primary text-primary hover:bg-primary/5">
+                                Create Cart (User Approval)
+                            </Button>
+                            <Button variant="ghost" onClick={onCancel} className="h-10 font-bold uppercase tracking-widest text-[10px] text-muted-foreground">Cancel</Button>
                         </div>
                     </div>
                 </div>

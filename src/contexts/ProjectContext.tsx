@@ -1,7 +1,8 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { Project } from '@/types';
 import { db } from '@/services/db';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
 
@@ -16,11 +17,33 @@ interface ProjectContextType {
   updateProjectSettings: (updates: Partial<Project>) => Promise<void>;
   updateMemberRole: (userId: string, role: string) => Promise<void>;
   updateMemberPermissions: (userId: string, permissions: any) => Promise<void>;
+  updateMemberResponsibilities: (userId: string, responsibilities: any[]) => Promise<void>;
   removeMember: (userId: string) => Promise<void>;
   inviteMember: (identifier: string, role: string) => Promise<void>;
   deleteProject: () => Promise<void>;
+  archiveProject: () => Promise<void>;
+  unarchiveProject: () => Promise<void>;
   refreshProjects: () => Promise<void>;
 }
+
+const normalizePhone = (phone: string) => {
+  // Remove all non-numeric characters except +
+  return phone.replace(/[^0-9+]/g, '');
+};
+
+const phonesMatch = (p1: string, p2: string) => {
+  const n1 = normalizePhone(p1);
+  const n2 = normalizePhone(p2);
+  if (!n1 || !n2) return false;
+
+  // Straight match
+  if (n1 === n2) return true;
+
+  // Last 10 digits match (common for India numbers with/without +91)
+  const last10_1 = n1.slice(-10);
+  const last10_2 = n2.slice(-10);
+  return last10_1.length === 10 && last10_1 === last10_2;
+};
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
@@ -29,6 +52,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const hasLoadedOnce = useRef(false);
 
   const loadProjects = useCallback(async () => {
     if (!user) {
@@ -38,9 +62,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setIsLoading(true);
+    // Only show full loading state on the very first load
+    // Subsequent re-fetches happen silently to avoid flash
+    if (!hasLoadedOnce.current) {
+      setIsLoading(true);
+    }
     try {
-      const userProjects = await db.getProjects(user.id);
+      const userProjects = user.role === 'admin'
+        ? await db.getAllProjects()
+        : await db.getProjects(user.id);
+
       setProjects(userProjects);
 
       // Restore current project from localStorage or set first project
@@ -57,6 +88,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       toast.error(`Failed to load projects: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
+      hasLoadedOnce.current = true;
     }
   }, [user]);
 
@@ -164,6 +196,26 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       throw err;
     }
   }, [currentProject]);
+  const updateMemberResponsibilities = useCallback(async (userId: string, responsibilities: any[]) => {
+    if (!currentProject) return;
+
+    try {
+      await db.updateMemberResponsibilities(currentProject.id, userId, responsibilities);
+
+      // Update local state
+      const updatedMembers = currentProject.members.map(m =>
+        m.userId === userId ? { ...m, responsibilities } : m
+      );
+      const updatedProject = { ...currentProject, members: updatedMembers } as Project;
+      setProjects(prev => prev.map(p => p.id === currentProject.id ? updatedProject : p));
+      setCurrentProject(updatedProject);
+      toast.success('Responsibilities updated');
+    } catch (err: any) {
+      console.error('Failed to update responsibilities:', err);
+      toast.error(`Failed to update responsibilities: ${err.message}`);
+      throw err;
+    }
+  }, [currentProject]);
 
   const removeMember = useCallback(async (userId: string) => {
     if (!currentProject) return;
@@ -199,18 +251,47 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     }
   }, [currentProject]);
 
+  const archiveProject = useCallback(async () => {
+    if (!currentProject) return;
+    try {
+      await updateProjectSettings({ status: 'archived' });
+      toast.success('Project archived');
+    } catch (err: any) {
+      console.error('Failed to archive project:', err);
+      toast.error(`Failed to archive project: ${err.message}`);
+      throw err;
+    }
+  }, [currentProject, updateProjectSettings]);
+
+  const unarchiveProject = useCallback(async () => {
+    if (!currentProject) return;
+    try {
+      await updateProjectSettings({ status: 'active' });
+      toast.success('Project unarchived');
+    } catch (err: any) {
+      console.error('Failed to unarchive project:', err);
+      toast.error(`Failed to unarchive project: ${err.message}`);
+      throw err;
+    }
+  }, [currentProject, updateProjectSettings]);
+
   const inviteMember = useCallback(async (identifier: string, role: string) => {
     if (!currentProject) return;
 
     try {
-      // Try finding by phone first, then email
-      let targetUser = await db.findUserByPhone(identifier);
-      if (!targetUser && identifier.includes('@')) {
-        targetUser = await db.findUserByEmail(identifier);
-      }
+      // Try finding user by identifier (phone or email)
+      const allProfiles = await supabase.from('profiles').select('*');
+      if (allProfiles.error) throw allProfiles.error;
+
+      let targetUser = allProfiles.data.find(p =>
+        (p.phone && phonesMatch(p.phone, identifier)) ||
+        (p.email && p.email.toLowerCase() === identifier.toLowerCase())
+      );
 
       if (!targetUser) {
-        toast.error('User not found. They must have an Ateli account.');
+        // If user not found, save as pending role
+        await db.savePendingRole(currentProject.id, identifier, role);
+        toast.success(`Invitation saved for ${identifier}. Role will be assigned when they join.`);
         return;
       }
 
@@ -267,9 +348,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updateProjectSettings,
       updateMemberRole,
       updateMemberPermissions,
+      updateMemberResponsibilities,
       removeMember,
       inviteMember,
       deleteProject,
+      archiveProject,
+      unarchiveProject,
       refreshProjects
     }}>
       {children}

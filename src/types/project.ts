@@ -12,7 +12,9 @@ export interface CollectionPerson {
     phone: string;
 }
 
-export type MemberRole = 'owner' | 'admin' | 'member' | 'project_manager' | 'site_supervisor' | 'purchase_manager' | 'architect' | 'viewer';
+export type MemberRole = 'owner' | 'admin' | 'project_team' | 'purchase' | 'design_architect' | 'management' | 'viewer' | 'receiver';
+
+export type Responsibility = 'payer' | 'approver' | 'receiver' | 'owner';
 
 export interface ProjectMemberPermissions {
     viewAllOrders?: boolean;
@@ -24,6 +26,7 @@ export interface ProjectMember {
     user?: Partial<User>; // Made optional and partial since we may not have full user data
     role: MemberRole;
     permissions?: ProjectMemberPermissions;
+    responsibilities?: Responsibility[];
     joinedAt: Date;
 }
 
@@ -38,6 +41,8 @@ export interface Project {
     gstConfig: GSTConfig;
     collectionPerson?: CollectionPerson;
     status: 'active' | 'archived';
+    projectType?: 'Company' | 'Individual' | 'Sub contracting';
+    imageUrl?: string;
     lastActivity?: Date;
     unreadCount?: number;
     createdAt: Date;

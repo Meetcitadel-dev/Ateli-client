@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { ChatMessage } from '@/types';
 import { db } from '@/services/db';
+import { supabase } from '@/lib/supabase';
 import { useProject } from './ProjectContext';
 import { useAuth } from './AuthContext';
 
@@ -12,6 +13,7 @@ export interface ChatUser {
     role: string;
     lastMessage?: ChatMessage;
     unreadCount?: number;
+    phone?: string;
 }
 
 interface ChatContextType {
@@ -26,6 +28,7 @@ interface ChatContextType {
     addMessage: (message: ChatMessage) => void;
     clearMessages: () => void;
     refreshMessages: () => Promise<void>;
+    markAsRead: (userId: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -65,21 +68,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
     }, [currentProject, user]);
 
-    // Poll for new messages (Realtime replacement)
+    // Realtime subscription for messages
     useEffect(() => {
-        if (!currentProject) return;
-        const interval = setInterval(() => {
-            if (!user) return;
-            // Silently refresh without setting isLoading
-            db.getProjectMessages(currentProject.id, user.id).then(msgs => {
-                setAllMessages(prev => {
-                    if (prev.length !== msgs.length) return msgs;
-                    return prev;
-                });
-            });
-        }, 5000);
-        return () => clearInterval(interval);
-    }, [currentProject]);
+        if (!currentProject || !user) return;
+
+        // Subscribe to changes in chat_messages for this project
+        const channel = supabase
+            .channel(`project-messages-${currentProject.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'chat_messages',
+                    filter: `project_id=eq.${currentProject.id}`
+                },
+                (payload) => {
+                    const newMessage = payload.new as any;
+
+                    // Don't add if it's already in the list (e.g., from an optimistic update)
+                    setAllMessages(prev => {
+                        if (prev.some(m => m.id === newMessage.id)) return prev;
+
+                        const processedMsg: ChatMessage = {
+                            id: newMessage.id,
+                            chatId: newMessage.chat_id,
+                            senderId: newMessage.sender_id,
+                            senderName: newMessage.sender_name,
+                            senderAvatar: newMessage.sender_avatar,
+                            content: newMessage.content,
+                            type: newMessage.type,
+                            mediaUrl: newMessage.media_url,
+                            orderId: newMessage.order_id,
+                            timestamp: new Date(newMessage.timestamp),
+                            isFromAteli: newMessage.is_from_ateli,
+                            isRead: newMessage.read_by?.includes(user.id) || false
+                        };
+                        return [...prev, processedMsg];
+                    });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [currentProject, user]);
 
     // Load messages when current project changes
     useEffect(() => {
@@ -115,10 +149,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     (msg.senderId === m.userId && msg.chatId === `chat-${currentProject.id}`)
                 );
                 const lastMsg = userMsgs[userMsgs.length - 1];
+                const unreadCount = userMsgs.filter(msg => !msg.isRead && msg.senderId === m.userId).length;
 
                 console.log(`ChatContext Debug: User ${m.user?.name} (${m.userId})`, {
                     msgCount: userMsgs.length,
-                    lastMsg: lastMsg?.content
+                    lastMsg: lastMsg?.content,
+                    unreadCount
                 });
 
                 return {
@@ -127,7 +163,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     avatar: m.user?.avatar,
                     role: m.role,
                     lastMessage: lastMsg,
-                    unreadCount: 0
+                    unreadCount: unreadCount,
+                    phone: m.user?.phone
                 };
             });
     }, [currentProject, user, allMessages]);
@@ -248,6 +285,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         await loadMessages();
     }, [loadMessages]);
 
+    const markAsRead = useCallback(async (targetUserId: string) => {
+        if (!currentProject || !user) return;
+
+        try {
+            // Use the RPC to mark as read in DB
+            // Note: Our DB might expect projectId and userId or chatId
+            await db.markMessagesAsRead(currentProject.id, targetUserId);
+
+            // Update local state
+            setAllMessages(prev => prev.map(m => {
+                const isRelevantChat = m.chatId === `chat-${currentProject.id}-${targetUserId}` ||
+                    (m.senderId === targetUserId && m.chatId === `chat-${currentProject.id}`);
+                if (isRelevantChat) {
+                    return { ...m, isRead: true };
+                }
+                return m;
+            }));
+        } catch (err) {
+            console.error('Failed to mark messages as read:', err);
+        }
+    }, [currentProject, user]);
+
     return (
         <ChatContext.Provider value={{
             messages,
@@ -260,7 +319,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             forwardMessage,
             addMessage,
             clearMessages,
-            refreshMessages
+            refreshMessages,
+            markAsRead
         }}>
             {children}
         </ChatContext.Provider>

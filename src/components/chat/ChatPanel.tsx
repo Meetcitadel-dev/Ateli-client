@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useProject } from '@/contexts/ProjectContext';
 import { useOrders } from '@/contexts/OrderContext';
 import { useChat } from '@/contexts/ChatContext';
 import { useView } from '@/contexts/ViewContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -26,7 +28,10 @@ import {
   Users,
   Target,
   ChevronRight,
-  Info
+  Info,
+  CheckCircle,
+  Truck,
+  Briefcase
 } from 'lucide-react';
 import { currentUser } from '@/data/mockData';
 import { cn } from '@/lib/utils';
@@ -46,8 +51,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 export function ChatPanel() {
   const { currentProject } = useProject();
   const { addOrder } = useOrders();
-  const { messages, addMessage, conversations, activeUserId, setActiveUserId, sendMessage, forwardMessage } = useChat();
+  const { messages, addMessage, conversations, activeUserId, setActiveUserId, sendMessage, forwardMessage, markAsRead } = useChat();
   const { isAdmin } = useView();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isOrderFormOpen, setIsOrderFormOpen] = useState(false);
@@ -55,6 +62,7 @@ export function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Voice Recording State
   const [isRecording, setIsRecording] = useState(false);
@@ -67,6 +75,7 @@ export function ChatPanel() {
   const [isForwardDialogOpen, setIsForwardDialogOpen] = useState(false);
   const [messageToForward, setMessageToForward] = useState<ChatMessage | null>(null);
   const [forwardSearchQuery, setForwardSearchQuery] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Mobile state for admin to toggle between list and chat
   // If admin, default to list view on mobile if no user selected
@@ -94,7 +103,6 @@ export function ChatPanel() {
     }
   };
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
       const scrollableNode = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -103,6 +111,22 @@ export function ChatPanel() {
       }
     }
   }, [messages, isTyping]);
+
+  // Mark messages as read when chat is opened
+  useEffect(() => {
+    if (isAdmin && activeUserId) {
+      const hasUnread = messages.some(m => !m.isRead && m.senderId === activeUserId);
+      if (hasUnread) {
+        markAsRead(activeUserId);
+      }
+    } else if (!isAdmin && currentProject) {
+      // Client view: mark all project messages as read
+      const hasUnread = messages.some(m => !m.isRead && m.isFromAteli);
+      if (hasUnread) {
+        markAsRead(user?.id || '');
+      }
+    }
+  }, [activeUserId, messages, isAdmin, markAsRead, currentProject, user?.id]);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -141,15 +165,15 @@ export function ChatPanel() {
         confirmedAt: new Date()
       })),
       totalAmount: totalAmount,
-      status: 'pending_confirmation',
+      status: 'confirmed',
       approvals: [{
-        userId: 'admin-user',
+        userId: user?.id || 'admin-user',
         userName: 'Ateli Admin',
         action: 'approved',
         timestamp: new Date(),
         comment: 'Created manually by Admin'
       }],
-      createdBy: 'admin-user',
+      createdBy: user?.id || 'admin-user',
       initiatedBy: 'admin-user',
       createdAt: new Date(),
       updatedAt: new Date()
@@ -158,13 +182,47 @@ export function ChatPanel() {
     addOrder(newOrder);
 
     // Notify in chat
-    // Note: We need manually construct this system message or use sendMessage
     const confirmText = `Order #${newOrder.orderNumber} has been created by Admin.`;
-    // Explicitly set isFromAteli: true for system messages generated in Admin view
-    sendMessage(confirmText, 'text', { isFromAteli: true });
+    sendMessage(confirmText, 'text', { isFromAteli: true, orderId: newOrder.id });
 
     setIsOrderFormOpen(false);
     toast.success("Order created successfully!");
+  };
+
+  const handleCreateCart = (items: any[]) => {
+    if (!currentProject) return;
+
+    const totalAmount = items.reduce((sum, item) => sum + item.totalPrice, 0);
+
+    const newCart: Order = {
+      id: `ord-${Date.now()}`,
+      projectId: currentProject.id,
+      orderNumber: `CART-${Math.floor(1000 + Math.random() * 9000)}`,
+      items: items.map(item => ({
+        id: `item-${Math.random().toString(36).substr(2, 9)}`,
+        name: item.name,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        isConfirmed: false,
+      })),
+      totalAmount: totalAmount,
+      status: 'cart',
+      isCart: true,
+      approvals: [],
+      createdBy: user?.id || 'admin-user',
+      initiatedBy: 'admin-user',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    addOrder(newCart);
+    const cartText = `Admin has prepared a cart (${newCart.orderNumber}) for your review. Please check the Cart tab to approve or deny.`;
+    sendMessage(cartText, 'text', { isFromAteli: true, orderId: newCart.id });
+
+    setIsOrderFormOpen(false);
+    toast.success("Cart created! User can now review and approve.");
   };
 
   const startRecording = async () => {
@@ -232,6 +290,72 @@ export function ChatPanel() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleDownload = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      // Extract filename from URL or default
+      const filename = url.split('/').pop()?.split('?')[0] || `image-${Date.now()}.png`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      toast.success("Download started");
+    } catch (err) {
+      console.error("Download failed:", err);
+      // Fallback to opening in new tab if fetch fails (e.g. CORS)
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // specific check for images if desired, or generic
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    const toastId = toast.loading("Uploading image...");
+
+    try {
+      const url = await db.uploadFile(file, 'chat');
+      await sendMessage('Shared an image', 'image', { mediaUrl: url });
+      toast.success("Image sent", { id: toastId });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload image", { id: toastId });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleWhatsAppClick = (message: ChatMessage) => {
+    let text = message.content || '';
+
+    if (message.type === 'image' && message.mediaUrl) {
+      text = `[Image] ${message.content || ''} ${message.mediaUrl}`;
+    } else if (message.type === 'voice') {
+      text = `[Voice Message] ${message.mediaUrl}`;
+    } else if (message.type === 'location' && message.locationData) {
+      const { latitude, longitude, address } = message.locationData;
+      text = `[Location] ${address || ''} https://maps.google.com/?q=${latitude},${longitude}`;
+    } else if (message.type === 'order_draft' && message.draftOrder) {
+      text = `[Order Draft] Total: ${message.draftOrder.totalEstimate}\n`;
+      text += message.draftOrder.items.map(i => `- ${i.name}: ${i.quantity} x ${i.unitPrice}`).join('\n');
+    }
+
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
   const handleForwardClick = (message: ChatMessage) => {
     setMessageToForward(message);
     setIsForwardDialogOpen(true);
@@ -274,6 +398,13 @@ export function ChatPanel() {
         toast.error(`Error getting location: ${error.message}`, { id: 'location-loading' });
       }
     );
+  };
+
+  const handleShareAddress = () => {
+    if (!currentProject) return;
+    const text = `*Project Address*\nProject: ${currentProject.name}\nAddress: ${currentProject.siteAddress}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   };
 
   if (!currentProject) {
@@ -333,16 +464,30 @@ export function ChatPanel() {
                   </Avatar>
                   <div className="flex-1 overflow-hidden">
                     <div className="flex justify-between items-center mb-0.5">
-                      <span className={cn("font-medium text-sm", activeUserId === user.id && "text-primary")}>
+                      <span className={cn(
+                        "font-medium text-sm",
+                        activeUserId === user.id ? "text-primary" : (user.unreadCount ?? 0) > 0 ? "font-bold text-foreground" : ""
+                      )}>
                         {user.name}
                       </span>
-                      {user.lastMessage && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {format(new Date(user.lastMessage.timestamp), 'h:mm a')}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(user.unreadCount ?? 0) > 0 && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+                        )}
+                        {user.lastMessage && (
+                          <span className={cn(
+                            "text-[10px]",
+                            (user.unreadCount ?? 0) > 0 ? "text-foreground font-bold" : "text-muted-foreground"
+                          )}>
+                            {format(new Date(user.lastMessage.timestamp), 'h:mm a')}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className={cn(
+                      "text-xs truncate",
+                      (user.unreadCount ?? 0) > 0 ? "text-foreground font-semibold" : "text-muted-foreground"
+                    )}>
                       {user.lastMessage?.content || "No messages yet"}
                     </p>
                   </div>
@@ -427,12 +572,23 @@ export function ChatPanel() {
 
                     <ScrollArea className="flex-1 px-6 pt-14 pb-8">
                       <div className="space-y-6">
-                        <div>
-                          <h3 className="text-2xl font-bold text-foreground">{currentProject.name}</h3>
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {currentProject.siteAddress}
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="text-2xl font-bold text-foreground">{currentProject.name}</h3>
+                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                              <MapPin className="w-3.5 h-3.5" />
+                              {currentProject.siteAddress}
+                            </div>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 rounded-full hover:bg-primary/10 hover:text-primary transition-all"
+                            onClick={handleShareAddress}
+                            title="Share address on WhatsApp"
+                          >
+                            <Share2 className="w-4 h-4" />
+                          </Button>
                         </div>
 
                         <Separator />
@@ -501,7 +657,24 @@ export function ChatPanel() {
                                   </Avatar>
                                   <div>
                                     <p className="text-sm font-bold leading-none">{member.user?.name || "Team Member"}</p>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-1">{member.role.replace('_', ' ')}</p>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">{member.role.replace('_', ' ')}</p>
+                                      {member.responsibilities?.map(resp => {
+                                        const Icon = resp === 'payer' ? CreditCard :
+                                          resp === 'approver' ? CheckCircle :
+                                            resp === 'receiver' ? Truck : Briefcase;
+                                        return (
+                                          <Badge
+                                            key={resp}
+                                            variant="outline"
+                                            className="h-3.5 px-1 text-[8px] gap-0.5 border-accent/30 text-accent bg-accent/5 uppercase font-bold"
+                                          >
+                                            <Icon className="w-2 h-2" />
+                                            {resp}
+                                          </Badge>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
                                 {member.role === 'owner' && <Badge className="bg-primary/10 text-primary text-[9px] uppercase font-bold border-primary/20">Owner</Badge>}
@@ -533,6 +706,7 @@ export function ChatPanel() {
                   <SheetContent className="w-full sm:max-w-2xl p-0 h-full border-l">
                     <AdminOrderForm
                       onSubmit={handleCreateOrder}
+                      onSubmitCart={handleCreateCart}
                       onCancel={() => setIsOrderFormOpen(false)}
                     />
                   </SheetContent>
@@ -598,6 +772,63 @@ export function ChatPanel() {
                             <p className="text-sm whitespace-pre-wrap leading-relaxed font-medium">
                               {msg.content}
                             </p>
+
+                            {msg.orderId && (
+                              <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                    <ShoppingCart className="w-4 h-4 text-primary" />
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-primary">Linked Order</span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-black text-[9px] uppercase tracking-widest gap-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/dashboard/orders/${msg.orderId}`);
+                                  }}
+                                >
+                                  View Order
+                                  <ArrowRight className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            )}
+
+                            <div className={cn(
+                              "flex items-center justify-end gap-1 mt-1 opacity-60",
+                              !isMe ? "text-muted-foreground" : "text-primary-foreground/70"
+                            )}>
+                              <span className="text-[9px]">
+                                {format(new Date(msg.timestamp), 'h:mm a')}
+                              </span>
+                              {isMe && (
+                                <div className="flex">
+                                  <Send className="w-2.5 h-2.5" />
+                                  <Send className="w-2.5 h-2.5 -ml-1.5" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Image Message */}
+                        {msg.type === 'image' && msg.mediaUrl && (
+                          <div className="flex flex-col gap-1">
+                            {isAdmin && msg.senderName && !msg.isForwarded && (
+                              <p className={cn(
+                                "text-[10px] opacity-70 mb-0.5 font-bold",
+                                !isMe ? "text-muted-foreground" : "text-primary-foreground/80"
+                              )}>{msg.senderName}</p>
+                            )}
+                            <img
+                              src={msg.mediaUrl}
+                              alt="Shared image"
+                              className="rounded-lg max-w-full max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => setSelectedImage(msg.mediaUrl!)}
+                            />
+                            {msg.content && <p className="text-sm mt-1">{msg.content}</p>}
                             <div className={cn(
                               "flex items-center justify-end gap-1 mt-1 opacity-60",
                               !isMe ? "text-muted-foreground" : "text-primary-foreground/70"
@@ -659,6 +890,22 @@ export function ChatPanel() {
                       >
                         <Forward className="w-3.5 h-3.5 text-muted-foreground" />
                       </Button>
+
+                      {/* WhatsApp Share Button */}
+                      {isAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className={cn(
+                            "opacity-0 group-hover:opacity-100 transition-all h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm border shadow-sm shrink-0",
+                            isMe ? "hover:bg-primary/10" : "hover:bg-muted"
+                          )}
+                          onClick={() => handleWhatsAppClick(msg)}
+                          title="Share on WhatsApp"
+                        >
+                          <Share2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        </Button>
+                      )}
                     </div>
                   );
                 })}
@@ -678,7 +925,15 @@ export function ChatPanel() {
 
             {/* Input Area */}
             <div className="p-4 bg-muted/30 border-t border-border mt-auto">
-              {isRecording ? (
+              {currentProject.status === 'archived' ? (
+                <div className="max-w-4xl mx-auto flex items-center justify-center p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl gap-3 text-yellow-600 dark:text-yellow-500">
+                  <Info className="w-5 h-5 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-bold uppercase tracking-wider text-[10px] mb-0.5">Project Archived</p>
+                    <p className="font-medium opacity-80">This project is currently archived. {isAdmin ? "You can unarchive it in Project Settings." : "Please contact an admin to unarchive it."}</p>
+                  </div>
+                </div>
+              ) : isRecording ? (
                 <div className="max-w-4xl mx-auto flex items-center gap-4 bg-primary/5 p-2 rounded-2xl border border-primary/20 animate-in slide-in-from-bottom-2">
                   <Button
                     type="button"
@@ -728,6 +983,16 @@ export function ChatPanel() {
                           size="icon"
                           variant="ghost"
                           className="h-10 w-10 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
+                          onClick={() => fileInputRef.current?.click()}
+                          title="Attach Image"
+                        >
+                          <Paperclip className="w-5 h-5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-10 w-10 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
                           onClick={sendLocation}
                           title="Share Location"
                         >
@@ -745,6 +1010,13 @@ export function ChatPanel() {
                         </Button>
                       </div>
                     )}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                    />
                   </div>
 
                   {inputValue.trim() && (
@@ -820,6 +1092,54 @@ export function ChatPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* Image Overlay Dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-transparent border-none shadow-none flex items-center justify-center">
+          {selectedImage && (
+            <div className="relative">
+              <img
+                src={selectedImage}
+                alt="Full size"
+                className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+              />
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute top-2 right-2 rounded-full opacity-70 hover:opacity-100"
+                onClick={() => window.open(selectedImage, '_blank')}
+                title="Open in new tab"
+              >
+                <ArrowRight className="w-4 h-4 -rotate-45" />
+              </Button>
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute top-2 right-14 rounded-full opacity-70 hover:opacity-100"
+                onClick={() => handleDownload(selectedImage)}
+                title="Download Image"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-4 h-4"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" x2="12" y1="15" y2="3" />
+                </svg>
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 }

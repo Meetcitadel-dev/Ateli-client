@@ -1,114 +1,95 @@
 
 import { supabase } from '@/lib/supabase';
-import { Project, Order, ChatMessage, WalletTransaction, User } from '@/types';
+import { Project, Order, ChatMessage, WalletTransaction, User, Notification } from '@/types';
 
 export const db = {
     // ============================================
     // ============================================
     // PROJECTS
     // ============================================
+    uploadFile: async (file: Blob | File, folder: string = 'files'): Promise<string> => {
+        const fileExt = file instanceof File ? file.name.split('.').pop() : 'webm';
+        const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `${folder}/${fileName}`;
+
+        const { error } = await supabase.storage
+            .from('ateli-files')
+            .upload(filePath, file);
+
+        if (error) {
+            console.error('Error uploading file:', error);
+            throw error;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('ateli-files')
+            .getPublicUrl(filePath);
+
+        return publicUrl;
+    },
+
     getProjects: async (userId: string): Promise<Project[]> => {
         try {
-            console.log('DB: Fetching projects for user:', userId);
-            // Use RPC to bypass schema cache
-            const { data, error } = await supabase.rpc('get_user_projects', {
+            console.log('DB: Fetching optimized projects for user:', userId);
+            const { data, error } = await supabase.rpc('get_projects_optimized', {
                 p_user_id: userId
             });
 
             if (error) {
-                console.error('Error fetching projects via RPC:', error);
-                // Fallback to direct select if RPC fails
-                console.log('DB: Falling back to direct select for projects');
-                const { data: directData, error: directError } = await supabase
-                    .from('project_members')
-                    .select('project_id, role, projects(*)')
-                    .eq('user_id', userId);
-
-                if (directError) {
-                    console.error('Direct project fetch failed:', directError);
-                    throw directError;
-                }
-
-                // Map direct data to the expected format
-                const projects: Project[] = [];
-                for (const row of (directData || [])) {
-                    if (!row.projects) continue;
-                    const p = row.projects as any;
-                    const members = await db.getProjectMembers(p.id);
-                    projects.push({
-                        id: p.id,
-                        name: p.name,
-                        siteAddress: p.site_address || '',
-                        location: p.location || '',
-                        status: p.status || 'active',
-                        gstConfig: p.gst_config || { enabled: false },
-                        collectionPerson: p.collection_person,
-                        budget: p.budget,
-                        description: p.description,
-                        lastActivity: p.last_activity ? new Date(p.last_activity) : new Date(),
-                        unreadCount: 0, // Fallback doesn't support unread count yet
-                        createdAt: new Date(p.created_at),
-                        updatedAt: new Date(p.updated_at),
-                        members: members
-                    });
-                }
-                return projects;
+                console.error('Error fetching optimized projects:', error);
+                throw error;
             }
 
-            const projects: Project[] = [];
-            console.log(`DB: Found ${data?.length || 0} projects`);
-
-            for (const row of (data || [])) {
-                // Get all members and unread count for this project
-                try {
-                    const members = await db.getProjectMembers(row.id);
-                    const { count: unreadCount } = await supabase
-                        .from('chat_messages')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('project_id', row.id)
-                        .not('read_by', 'cs', `{${userId}}`) // Check if userId is NOT in read_by array
-                        .neq('sender_id', userId);
-
-                    projects.push({
-                        id: row.id,
-                        name: row.name,
-                        siteAddress: row.site_address || '',
-                        location: row.location || '',
-                        status: row.status as any || 'active',
-                        gstConfig: row.gst_config || { enabled: false },
-                        collectionPerson: row.collection_person,
-                        budget: row.budget,
-                        description: row.description,
-                        lastActivity: row.last_activity ? new Date(row.last_activity) : new Date(),
-                        unreadCount: unreadCount || 0,
-                        createdAt: new Date(row.created_at),
-                        updatedAt: new Date(row.updated_at),
-                        members: members
-                    });
-                } catch (memberError) {
-                    console.error(`Error fetching data for project ${row.id}:`, memberError);
-                    projects.push({
-                        id: row.id,
-                        name: row.name,
-                        siteAddress: row.site_address || '',
-                        location: row.location || '',
-                        status: row.status as any || 'active',
-                        gstConfig: row.gst_config || { enabled: false },
-                        collectionPerson: row.collection_person,
-                        budget: row.budget,
-                        description: row.description,
-                        lastActivity: row.last_activity ? new Date(row.last_activity) : new Date(),
-                        unreadCount: 0,
-                        createdAt: new Date(row.created_at),
-                        updatedAt: new Date(row.updated_at),
-                        members: []
-                    });
-                }
-            }
-
-            return projects;
+            // The RPC returns a JSON array of projects with members and unreadCount nested.
+            // We just need to map dates.
+            return (data || []).map((p: any) => ({
+                ...p,
+                siteAddress: p.site_address,
+                gstConfig: p.gst_config,
+                collectionPerson: p.collection_person,
+                projectType: p.project_type,
+                imageUrl: p.image_url,
+                lastActivity: new Date(p.last_activity),
+                createdAt: new Date(p.created_at),
+                updatedAt: new Date(p.updated_at),
+                members: (p.members || []).map((m: any) => ({
+                    ...m,
+                    joinedAt: new Date(m.joinedAt)
+                }))
+            }));
         } catch (err) {
             console.error('Critical error in getProjects:', err);
+            throw err;
+        }
+    },
+
+    getAllProjects: async (): Promise<Project[]> => {
+        try {
+            console.log('DB: Fetching ALL projects optimized');
+            const { data, error } = await supabase.rpc('get_all_projects_optimized_admin');
+
+            if (error) {
+                console.error('Error fetching optimized projects admin:', error);
+                throw error;
+            }
+
+            return (data || []).map((p: any) => ({
+                ...p,
+                siteAddress: p.site_address,
+                gstConfig: p.gst_config,
+                collectionPerson: p.collection_person,
+                projectType: p.project_type,
+                imageUrl: p.image_url,
+                lastActivity: new Date(p.last_activity),
+                createdAt: new Date(p.created_at),
+                updatedAt: new Date(p.updated_at),
+                members: (p.members || []).map((m: any) => ({
+                    ...m,
+                    joinedAt: new Date(m.joinedAt)
+                }))
+            }));
+        } catch (err) {
+            console.error('Critical error in getAllProjects:', err);
             throw err;
         }
     },
@@ -124,6 +105,7 @@ export const db = {
                 userId: m.user_id,
                 role: m.role as any,
                 permissions: m.permissions || {},
+                responsibilities: m.responsibilities || [],
                 joinedAt: new Date(m.joined_at),
                 user: {
                     id: m.user_id,
@@ -157,6 +139,7 @@ export const db = {
             userId: m.user_id,
             role: m.role as any,
             permissions: m.permissions || {},
+            responsibilities: m.responsibilities || [],
             joinedAt: new Date(m.joined_at),
             user: {
                 id: m.user?.id || m.user_id,
@@ -178,6 +161,8 @@ export const db = {
             p_site_address: project.siteAddress || '',
             p_location: project.location || '',
             p_status: project.status || 'active',
+            p_project_type: project.projectType || null,
+            p_image_url: project.imageUrl || null,
             p_gst_config: JSON.stringify(project.gstConfig || { enabled: false }),
             p_collection_person: project.collectionPerson ? JSON.stringify(project.collectionPerson) : null,
             p_budget: project.budget || 0,
@@ -189,11 +174,12 @@ export const db = {
             throw projectError;
         }
 
-        // Add user as owner
+        // Add user as admin
         const { error: memberError } = await supabase.rpc('upsert_project_member', {
             p_project_id: project.id,
             p_user_id: userId,
-            p_role: 'owner'
+            p_role: 'admin',
+            p_responsibilities: []
         });
 
         if (memberError) {
@@ -221,6 +207,8 @@ export const db = {
             p_site_address: updates.siteAddress || null,
             p_location: updates.location || null,
             p_status: updates.status || null,
+            p_project_type: updates.projectType || null,
+            p_image_url: updates.imageUrl || null,
             p_gst_config: updates.gstConfig ? JSON.stringify(updates.gstConfig) : null,
             p_collection_person: updates.collectionPerson ? JSON.stringify(updates.collectionPerson) : null,
             p_budget: updates.budget !== undefined ? updates.budget : null,
@@ -257,15 +245,43 @@ export const db = {
         }
     },
 
+    updateMemberResponsibilities: async (projectId: string, userId: string, responsibilities: string[]) => {
+        const { error } = await supabase
+            .from('project_members')
+            .update({ responsibilities, updated_at: new Date().toISOString() })
+            .match({ project_id: projectId, user_id: userId });
+
+        if (error) {
+            console.error('Error updating member responsibilities:', error);
+            throw error;
+        }
+    },
+
     addProjectMember: async (projectId: string, userId: string, role: string) => {
         const { error } = await supabase.rpc('upsert_project_member', {
             p_project_id: projectId,
             p_user_id: userId,
-            p_role: role
+            p_role: role,
+            p_responsibilities: []
         });
 
         if (error) {
             console.error('Error adding project member:', error);
+            throw error;
+        }
+    },
+
+    savePendingRole: async (projectId: string, identifier: string, role: string) => {
+        const { error } = await supabase
+            .from('pending_roles')
+            .upsert({
+                project_id: projectId,
+                identifier: identifier,
+                role: role
+            }, { onConflict: 'identifier, project_id' });
+
+        if (error) {
+            console.error('Error saving pending role:', error);
             throw error;
         }
     },
@@ -509,6 +525,7 @@ export const db = {
     },
 
     saveTransaction: async (transaction: WalletTransaction) => {
+        // Now mostly handled by executeWalletTransaction RPC, but keeping for direct inserts if needed
         const { error } = await supabase
             .from('wallet_transactions')
             .insert({
@@ -525,6 +542,22 @@ export const db = {
             console.error('Error saving transaction:', error);
             throw error;
         }
+    },
+
+    executeWalletTransaction: async (amount: number, type: 'credit' | 'debit', description: string, orderId?: string): Promise<number> => {
+        const { data, error } = await supabase.rpc('handle_wallet_transaction', {
+            p_amount: amount,
+            p_type: type,
+            p_description: description,
+            p_order_id: orderId
+        });
+
+        if (error) {
+            console.error('RPC handle_wallet_transaction failed:', error);
+            throw error;
+        }
+
+        return data as number;
     },
 
     // ============================================
@@ -548,34 +581,50 @@ export const db = {
     },
 
     // ============================================
-    // STORAGE
+    // NOTIFICATIONS
     // ============================================
-    uploadFile: async (file: Blob | File, bucket: string = 'chat'): Promise<string> => {
-        const type = file.type.split(';')[0];
-        const extension = type.split('/')[1] || 'webm';
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}.${extension}`;
-
-        console.log(`DB: Uploading file to bucket "${bucket}" as "${fileName}"`);
-
-        const { data, error } = await supabase.storage
-            .from(bucket)
-            .upload(fileName, file);
+    getNotifications: async (userId: string): Promise<Notification[]> => {
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
 
         if (error) {
-            console.error('Error uploading file to Supabase Storage:', {
-                message: error.message,
-                name: (error as any).name,
-                status: (error as any).status,
-                bucket
-            });
+            console.error('Error fetching notifications:', error);
             throw error;
         }
 
-        const { data: { publicUrl } } = supabase.storage
-            .from(bucket)
-            .getPublicUrl(data.path);
+        return (data || []).map(row => ({
+            id: row.id,
+            userId: row.user_id,
+            type: row.type as any,
+            title: row.title,
+            message: row.message,
+            orderId: row.order_id,
+            projectId: row.project_id,
+            isRead: row.is_read,
+            createdAt: new Date(row.created_at)
+        }));
+    },
 
-        console.log('DB: File uploaded successfully, public URL:', publicUrl);
-        return publicUrl;
+    markNotificationRead: async (notificationId: string) => {
+        const { error } = await supabase.rpc('mark_notification_read', {
+            p_notification_id: notificationId
+        });
+
+        if (error) {
+            console.error('Error marking notification as read:', error);
+            throw error;
+        }
+    },
+
+    markAllNotificationsRead: async () => {
+        const { error } = await supabase.rpc('mark_all_notifications_read');
+
+        if (error) {
+            console.error('Error marking all notifications as read:', error);
+            throw error;
+        }
     }
 };

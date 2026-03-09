@@ -18,7 +18,10 @@ import {
   CheckCircle2,
   Truck,
   Plus,
-  AlertCircle
+  AlertCircle,
+  MapPin,
+  Loader2,
+  Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,7 +34,7 @@ const statusTabs: { id: OrderStatus | 'all'; label: string; icon: React.ElementT
 ];
 
 export function OrdersPanel() {
-  const { currentProject } = useProject();
+  const { currentProject, isLoading } = useProject();
   const { user } = useAuth();
   const { isAdmin } = useView();
   const { getProjectOrders, approveOrder, rejectOrder } = useOrders();
@@ -39,7 +42,7 @@ export function OrdersPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
-  const projectOrders = currentProject ? getProjectOrders(currentProject.id) : [];
+  const projectOrders = currentProject ? getProjectOrders(currentProject.id).filter(o => o.status !== 'cart') : [];
 
   // Filter based on permissions
   const visibleOrders = projectOrders.filter(order => {
@@ -50,17 +53,10 @@ export function OrdersPanel() {
 
     // Check member permission
     const member = currentProject.members.find(m => m.userId === user.id);
-    if (!member) return false;
 
-    // Owners can see everything
-    if (member.role === 'owner') return true;
-
-    // If viewAllOrders is explicitly false, only show their own orders
-    if (member.permissions?.viewAllOrders === false) {
-      return order.createdBy === user.id;
-    }
-
-    return true;
+    // If they are a member of the project, they can see all project orders
+    // This ensures they see orders created by admins or other team members
+    return !!member;
   });
 
   const filteredOrders = visibleOrders.filter(order => {
@@ -70,89 +66,94 @@ export function OrdersPanel() {
     return matchesStatus && matchesSearch;
   });
 
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#050505] h-full">
+        <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+        <p className="text-white/20 text-xs font-black uppercase tracking-[0.2em]">Loading Projects...</p>
+      </div>
+    );
+  }
+
   if (!currentProject) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-muted/30">
-        <p className="text-muted-foreground">Select a project to view orders</p>
+      <div className="flex-1 flex flex-col items-center justify-center bg-[#050505] h-full text-center p-8">
+        <div className="w-20 h-20 rounded-[2.5rem] bg-white/[0.02] border border-white/5 flex items-center justify-center mb-6">
+          <Briefcase className="w-8 h-8 text-white/20" />
+        </div>
+        <h3 className="text-xl font-black text-white italic tracking-tighter">No Project Selected</h3>
+        <p className="text-white/30 text-xs font-bold uppercase tracking-widest mt-2 max-w-[240px] leading-relaxed">
+          Select a project from the sidebar to view its orders
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background h-full overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#050505] h-full overflow-hidden">
       {/* Header */}
-      <header className="px-4 md:px-8 py-4 md:py-6 border-b border-border bg-card">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Orders</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage and track orders for {currentProject.name}
-            </p>
-          </div>
-          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground gap-2">
-            <Plus className="w-4 h-4" />
-            Request Quote
-          </Button>
+      <header className="px-8 pt-10 pb-2">
+        <div className="space-y-1 mb-8">
+          <h1 className="text-3xl font-semibold text-white tracking-tight">Orders</h1>
+          <p className="text-white/40 text-sm font-medium">
+            Manage and track orders for {currentProject.name}
+          </p>
         </div>
 
         {/* Status Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none flex-nowrap md:flex-wrap">
+        <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-none no-scrollbar">
           {statusTabs.map((tab) => {
-            const Icon = tab.icon;
             const count = tab.id === 'all'
               ? visibleOrders.length
               : visibleOrders.filter(o => o.status === tab.id).length;
 
+            const isActive = activeStatus === tab.id;
+
             return (
-              <Button
+              <button
                 key={tab.id}
-                variant={activeStatus === tab.id ? 'default' : 'ghost'}
-                size="sm"
                 onClick={() => setActiveStatus(tab.id)}
                 className={cn(
-                  "gap-2",
-                  activeStatus === tab.id && "bg-primary text-primary-foreground"
+                  "flex items-center gap-2.5 px-4 py-2.5 rounded-full transition-all duration-200 whitespace-nowrap text-sm font-medium",
+                  isActive
+                    ? "bg-[#d4f45d] text-black shadow-lg shadow-[#d4f45d]/10"
+                    : "bg-white/[0.05] text-white/60 hover:bg-white/[0.08]"
                 )}
               >
-                <Icon className="w-4 h-4" />
+                <tab.icon className={cn("w-4 h-4", isActive ? "text-black" : "text-white/40")} />
                 {tab.label}
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    "ml-1",
-                    activeStatus === tab.id && "bg-primary-foreground/20 text-primary-foreground"
-                  )}
-                >
+                <span className={cn(
+                  "flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold",
+                  isActive ? "bg-black/10" : "bg-white/10"
+                )}>
                   {count}
-                </Badge>
-              </Button>
+                </span>
+              </button>
             );
           })}
         </div>
       </header>
 
-      {/* Search and Filter */}
-      <div className="px-8 py-4 border-b border-border bg-card/50">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search orders..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-background"
-            />
-          </div>
-          <Button variant="outline" size="icon">
-            <Filter className="w-4 h-4" />
-          </Button>
+      {/* Search & Filter Bar */}
+      <div className="px-8 pb-5 flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <Input
+            placeholder="Search orders..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-10 bg-white/[0.03] border-white/5 focus:border-[#d4f45d]/30 rounded-xl text-white placeholder:text-white/20 transition-all font-medium text-sm"
+          />
         </div>
+        <Button variant="outline" className="h-10 w-10 p-0 rounded-xl border-white/5 bg-white/[0.03] hover:bg-white/[0.08] text-white/40">
+          <Filter className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Orders Grid */}
       <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
         {filteredOrders.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
             {filteredOrders.map((order) => (
               <OrderCard
                 key={order.id}
@@ -165,13 +166,13 @@ export function OrdersPanel() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-              <ShoppingCart className="w-8 h-8 text-muted-foreground" />
+            <div className="w-20 h-20 rounded-[2.5rem] bg-white/[0.02] border border-white/5 flex items-center justify-center mb-6">
+              <ShoppingCart className="w-8 h-8 text-white/20" />
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-1">No orders found</h3>
-            <p className="text-muted-foreground max-w-sm">
+            <h3 className="text-xl font-black text-white italic tracking-tighter">No orders found</h3>
+            <p className="text-white/30 text-xs font-bold uppercase tracking-widest mt-2 max-w-[240px] leading-relaxed">
               {searchQuery
-                ? 'Try adjusting your search or filters'
+                ? 'Try adjusting your search or status filter'
                 : 'Orders created from your chats will appear here'}
             </p>
           </div>

@@ -17,6 +17,7 @@ interface AuthContextType {
     completeOnboarding: (name: string) => Promise<void>;
     logout: () => void;
     updateUserProfile: (updates: Partial<User>) => void;
+    refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     email: metadata.email || '',
                     avatar: '',
                     walletBalance: 0,
-                    role: (metadata.email?.endsWith('@ateli.co.in') || metadata.email?.endsWith('@mastersunion.org')) ? 'admin' : 'client'
+                    role: 'client' // Default to client, no more hardcoded domain checks
                 };
                 setUser(basicUser);
             }
@@ -124,11 +125,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = useCallback(async (phone: string) => {
         const cleanPhone = formatPhone(phone);
-        const { error } = await supabase.auth.signInWithOtp({ phone: cleanPhone });
+        console.log('Attempting login with phone:', cleanPhone);
+        const { error } = await supabase.auth.signInWithOtp({
+            phone: cleanPhone,
+            options: {
+                shouldCreateUser: true
+            }
+        });
         if (error) {
+            console.error('Supabase OTP Error:', error);
             toast.error(error.message);
             throw error;
         } else {
+            console.log('OTP request successful');
             toast.success("OTP sent successfully");
         }
     }, []);
@@ -208,20 +217,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const updateUserProfile = useCallback(async (updates: Partial<User>) => {
         if (!user) return;
 
+        // Construct payload excluding restricted fields unless they are unchanged from local state
+        // (RLS will block them anyway, but this is cleaner)
+        const payload: any = {
+            updated_at: new Date().toISOString()
+        };
+
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.avatar !== undefined) payload.avatar_url = updates.avatar;
+
+        // Only update local state for these, don't push to DB (unless admin)
+        // RLS will allow the update if these match current DB values
+        const isAdmin = user.role === 'admin';
+        if (isAdmin) {
+            if (updates.walletBalance !== undefined) payload.wallet_balance = updates.walletBalance;
+            if (updates.role !== undefined) payload.role = updates.role;
+        }
+
         const { error } = await supabase
             .from('profiles')
-            .update({
-                name: updates.name,
-                avatar_url: updates.avatar,
-                wallet_balance: updates.walletBalance
-            })
+            .update(payload)
             .eq('id', user.id);
 
         if (error) {
+            console.error('Profile update error:', error);
             toast.error(error.message);
         } else {
             setUser(prev => prev ? { ...prev, ...updates } : null);
         }
+    }, [user]);
+
+    const refreshProfile = useCallback(async () => {
+        if (!user) return;
+        await fetchAndSetProfile(user.id, { phone: user.phone, email: user.email });
     }, [user]);
 
     return (
@@ -237,7 +265,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             signup,
             completeOnboarding,
             logout,
-            updateUserProfile
+            updateUserProfile,
+            refreshProfile
         }}>
             {children}
         </AuthContext.Provider>

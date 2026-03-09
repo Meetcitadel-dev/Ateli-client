@@ -62,6 +62,7 @@ CREATE TABLE public.project_members (
     user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
     role text DEFAULT 'member',
     permissions jsonb DEFAULT '{}'::jsonb,
+    responsibilities text[] DEFAULT '{}'::text[],
     joined_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now(),
     UNIQUE(project_id, user_id)
@@ -243,6 +244,7 @@ RETURNS TABLE (
     user_id uuid,
     role text,
     permissions jsonb,
+    responsibilities text[],
     joined_at timestamptz,
     name text,
     email text,
@@ -255,6 +257,7 @@ BEGIN
         pm.user_id,
         pm.role,
         pm.permissions,
+        pm.responsibilities,
         pm.joined_at,
         p.name,
         p.email,
@@ -272,14 +275,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION upsert_project_member(
     p_project_id text,
     p_user_id uuid,
-    p_role text DEFAULT 'member'
+    p_role text DEFAULT 'member',
+    p_responsibilities text[] DEFAULT '{}'::text[]
 )
 RETURNS void AS $$
 BEGIN
-    INSERT INTO public.project_members (project_id, user_id, role, joined_at, updated_at)
-    VALUES (p_project_id, p_user_id, COALESCE(p_role, 'member'), now(), now())
+    INSERT INTO public.project_members (project_id, user_id, role, responsibilities, joined_at, updated_at)
+    VALUES (p_project_id, p_user_id, COALESCE(p_role, 'member'), p_responsibilities, now(), now())
     ON CONFLICT (project_id, user_id) DO UPDATE SET
         role = EXCLUDED.role,
+        responsibilities = EXCLUDED.responsibilities,
         updated_at = now();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

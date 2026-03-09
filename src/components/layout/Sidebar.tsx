@@ -5,36 +5,36 @@ import { useProject } from '@/contexts/ProjectContext';
 import { useOrders } from '@/contexts/OrderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useView } from '@/contexts/ViewContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   MessageSquare,
   ShoppingCart,
+  ShoppingBag,
   ChevronDown,
   Building2,
   Users,
   MapPin,
-  Plus,
   Bell,
   Wallet,
   BarChart3,
   ArrowLeft,
   Cog,
   LogOut,
-  X
+  X,
+  Megaphone
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { mockNotifications } from '@/data/mockData';
 import { toast } from 'sonner';
 
 interface SidebarProps {
@@ -47,28 +47,31 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
   const { currentProject, getCurrentUserProjects, setCurrentProject } = useProject();
   const { getProjectOrders } = useOrders();
   const { user, logout, updateUserProfile } = useAuth();
+  const { unreadCount: unreadNotifications } = useNotifications();
   const userProjects = getCurrentUserProjects();
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [tempProfile, setTempProfile] = useState<Partial<User>>({});
   const navigate = useNavigate();
-
-  const unreadNotifications = mockNotifications.filter(n => !n.isRead).length;
-  const projectOrderCount = currentProject ? getProjectOrders(currentProject.id).length : 0;
+  const projectOrders = currentProject ? getProjectOrders(currentProject.id) : [];
+  const projectOrderCount = projectOrders.filter(o => o.status !== 'cart').length;
+  const projectCartCount = projectOrders.filter(o => o.status === 'cart').length;
 
   const { isAdmin } = useView();
 
   const allNavItems = [
     { id: 'chat', label: 'Chat', icon: MessageSquare, path: '/dashboard/chat' },
-    { id: 'orders', label: 'Orders', icon: ShoppingCart, badge: projectOrderCount, path: '/dashboard/orders' },
+    { id: 'orders', label: 'Orders', icon: ShoppingBag, badge: projectOrderCount, path: '/dashboard/orders' },
+    { id: 'cart', label: 'Cart', icon: ShoppingCart, badge: projectCartCount, path: '/dashboard/cart' },
     { id: 'wallet', label: 'Wallet', icon: Wallet, path: '/dashboard/wallet' },
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/dashboard/analytics' },
+    { id: 'broadcast', label: 'Broadcast', icon: Megaphone, path: '/dashboard/broadcast' },
     { id: 'project-config', label: 'Project Settings', icon: Cog, path: '/dashboard/project-settings' },
   ];
 
   const navItems = isAdmin
-    ? allNavItems
-    : allNavItems.filter(item => !['analytics', 'project-config'].includes(item.id));
+    ? allNavItems.filter(item => !['wallet'].includes(item.id))
+    : allNavItems.filter(item => !['analytics', 'project-config', 'broadcast'].includes(item.id));
 
   const handleProjectSelect = (project: any) => {
     setCurrentProject(project);
@@ -118,12 +121,20 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
                 isCollapsed ? "p-2 flex justify-center" : "p-3"
               )}>
                 {isCollapsed ? (
-                  <Building2 className="w-5 h-5 text-sidebar-primary" />
+                  currentProject?.imageUrl ? (
+                    <img src={currentProject.imageUrl.split(',')[0]} alt={currentProject.name} className="w-5 h-5 rounded-md object-cover" />
+                  ) : (
+                    <Building2 className="w-5 h-5 text-sidebar-primary" />
+                  )
                 ) : (
                   <>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-sidebar-primary" />
+                        {currentProject?.imageUrl ? (
+                          <img src={currentProject.imageUrl.split(',')[0]} alt={currentProject.name} className="w-4 h-4 rounded-sm object-cover" />
+                        ) : (
+                          <Building2 className="w-4 h-4 text-sidebar-primary" />
+                        )}
                         <span className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider">
                           Project
                         </span>
@@ -133,9 +144,14 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
                         isProjectMenuOpen && "rotate-180"
                       )} />
                     </div>
-                    <p className="font-semibold text-sidebar-foreground truncate">
-                      {currentProject?.name || 'Select Project'}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-sidebar-foreground truncate">
+                        {currentProject?.name || 'Select Project'}
+                      </p>
+                      {currentProject && (currentProject.unreadCount ?? 0) > 0 && (
+                        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse" />
+                      )}
+                    </div>
                   </>
                 )}
               </button>
@@ -159,27 +175,36 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
                     currentProject?.id === project.id && "bg-sidebar-accent"
                   )}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium truncate">{project.name}</p>
-                      {project.status === 'archived' && (
-                        <Badge variant="secondary" className="text-xs">Archived</Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Users className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {project.members.length} members
-                      </span>
+                  <div className="flex items-center gap-3">
+                    {project.imageUrl ? (
+                      <div className="w-8 h-8 rounded-md bg-muted overflow-hidden shrink-0">
+                        <img src={project.imageUrl.split(',')[0]} alt={project.name} className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{project.name}</p>
+                        {project.status === 'archived' && (
+                          <Badge variant="secondary" className="text-xs">Archived</Badge>
+                        )}
+                        {(project.unreadCount ?? 0) > 0 && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Users className="w-3 h-3 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {project.members.length} members
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer p-3 text-sidebar-primary focus:text-sidebar-primary focus:bg-sidebar-accent">
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Project
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -205,16 +230,20 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
               >
                 <Icon className="w-5 h-5 shrink-0" />
                 {!isCollapsed && <span className="font-medium">{item.label}</span>}
-                {item.id === 'orders' && item.badge > 0 && !isCollapsed && (
+                {item.badge > 0 && !isCollapsed && (
                   <span className={cn(
                     "ml-auto text-xs font-semibold px-2 py-0.5 rounded-full transition-colors",
-                    "bg-sidebar-accent/50 text-sidebar-foreground/80 group-[.active]:bg-white/20 group-[.active]:text-white"
+                    "bg-sidebar-accent/50 text-sidebar-foreground/80 group-[.active]:bg-white/20 group-[.active]:text-white",
+                    item.id === 'cart' && "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
                   )}>
                     {item.badge}
                   </span>
                 )}
                 {isCollapsed && item.badge > 0 && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-primary-foreground rounded-full" />
+                  <span className={cn(
+                    "absolute top-2 right-2 w-2 h-2 rounded-full",
+                    item.id === 'cart' ? "bg-amber-400" : "bg-primary-foreground"
+                  )} />
                 )}
               </NavLink>
             );
@@ -250,7 +279,12 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
         )}>
           <div
             onClick={() => {
-              setTempProfile({ name: user?.name, phone: user?.phone, avatar: user?.avatar });
+              setTempProfile({
+                name: user?.name,
+                phone: user?.phone,
+                avatar: user?.avatar,
+                role: user?.role
+              });
               setIsProfileModalOpen(true);
             }}
             className={cn(
@@ -270,9 +304,11 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
                   <p className="font-medium text-sm truncate">{user?.name}</p>
                   <Cog className="w-3.5 h-3.5 text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60 transition-colors" />
                 </div>
-                <p className="text-xs text-sidebar-foreground/60 truncate">
-                  ₹{user?.walletBalance.toLocaleString()} wallet
-                </p>
+                {!isAdmin && (
+                  <p className="text-xs text-sidebar-foreground/60 truncate">
+                    ₹{user?.walletBalance.toLocaleString()} wallet
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -296,7 +332,7 @@ export function Sidebar({ onShowNotifications, isCollapsed = false, isMobileView
                 <Label className="text-sm font-medium">Full Name</Label>
                 <Input
                   type="text"
-                  defaultValue={user?.name}
+                  value={tempProfile.name || ''}
                   onChange={(e) => setTempProfile(prev => ({ ...prev, name: e.target.value }))}
                   className="bg-muted/30 border-border focus:ring-primary/20 h-11 rounded-xl"
                   placeholder="Enter your name"

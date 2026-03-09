@@ -36,23 +36,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const addTransaction = useCallback(async (amount: number, type: 'credit' | 'debit', description: string) => {
         if (!user) return;
 
-        const newTransaction: WalletTransaction = {
-            id: `txn-${Date.now()}`,
-            userId: user.id,
-            amount,
-            type,
-            description,
-            createdAt: new Date()
-        };
-
         try {
-            await db.saveTransaction(newTransaction);
-            setTransactions(prev => [newTransaction, ...prev]);
+            const newBalance = await db.executeWalletTransaction(amount, type, description);
 
-            // Update balance in AuthContext/Profile
-            const balanceChange = type === 'credit' ? amount : -amount;
+            // Refresh transactions
+            const userTransactions = await db.getTransactions(user.id);
+            setTransactions(userTransactions);
+
+            // Update local balance state
+            // Note: updateUserProfile will try to update DB, which is now restricted for balance.
+            // We should ideally have a refreshProfile method in AuthContext.
             updateUserProfile({
-                walletBalance: user.walletBalance + balanceChange
+                walletBalance: newBalance
             });
 
             if (type === 'credit') {

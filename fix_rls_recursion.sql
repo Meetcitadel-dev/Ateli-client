@@ -1,26 +1,29 @@
 
 -- 1. Create a helper function to check admin status safely (prevents recursion)
+-- SECURITY DEFINER runs with the privileges of the creator (usually postgres)
+-- SET search_path = public ensures we don't accidentally check other schemas
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean AS $$
 BEGIN
-  RETURN (
-    SELECT role = 'admin'
+  RETURN EXISTS (
+    SELECT 1
     FROM public.profiles
-    WHERE id = auth.uid()
+    WHERE id = auth.uid() AND role = 'admin'
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 2. Drop the problematic recursive policies
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 DROP POLICY IF EXISTS "profiles_update" ON public.profiles;
 
 -- 3. Create clean, non-recursive policies
--- Allow users to see their own profile, and allow admins to see ALL profiles
+-- The trick here is (auth.uid() = id) which handles the user's own session
+-- without needing to query the table again, breaking the recursion.
 CREATE POLICY "profiles_select" ON public.profiles 
 FOR SELECT USING (
     auth.uid() = id 
-    OR (SELECT public.is_admin())
+    OR (auth.uid() <> id AND public.is_admin())
 );
 
 -- Allow users to update their own profile

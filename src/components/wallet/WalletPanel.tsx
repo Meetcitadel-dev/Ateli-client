@@ -98,7 +98,7 @@ export function WalletPanel() {
                 className="flex-1 h-12 pl-8 text-base md:text-lg bg-muted/30 border-muted-foreground/20 focus:ring-primary/20"
               />
             </div>
-            <Button onClick={handleTopUp} className="gap-2 h-12 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all active:scale-95 w-full sm:w-auto">
+            <Button onClick={handleTopUp} className="gap-2 h-14 sm:h-12 px-8 bg-primary hover:bg-primary/90 text-black font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95 w-full sm:w-auto">
               <CreditCard className="w-5 h-5" />
               Add Money
             </Button>

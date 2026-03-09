@@ -270,37 +270,7 @@ export function SettingsPanel() {
             </CardContent>
           </Card>
 
-          {/* Notifications */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <Bell className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <CardTitle>Notifications</CardTitle>
-                  <CardDescription>Configure how you receive updates</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { label: 'New order notifications', description: 'Get notified when new orders are created' },
-                  { label: 'Order status updates', description: 'Receive updates on order progress' },
-                  { label: 'Team activity', description: 'Get notified about team member actions' },
-                ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">{item.label}</p>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
-                    </div>
-                    <Button variant="outline" size="sm">Enable</Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+
 
           {/* Danger Zone */}
           <Card className="border-destructive/20">

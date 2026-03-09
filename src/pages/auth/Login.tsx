@@ -96,7 +96,7 @@ export default function LoginPage() {
                             Login to Ateli
                         </CardTitle>
                         <CardDescription className="text-muted-foreground">
-                            {step === 'input' && (loginType === 'phone' ? "Enter your mobile number to login" : "Admin login using your @ateli.co.in email")}
+                            {step === 'input' && (loginType === 'phone' ? "Enter your mobile number to login" : "Admin login using your admin email")}
                             {step === 'otp' && `Verify the code sent to ${loginType === 'phone' ? phone : email}`}
                         </CardDescription>
                     </div>
@@ -129,7 +129,7 @@ export default function LoginPage() {
                                             <Input
                                                 id="identifier"
                                                 type="email"
-                                                placeholder="yourname@ateli.co.in"
+                                                placeholder="yourname@ateli.co.in or @mastersunion.org"
                                                 required
                                                 value={email}
                                                 onChange={(e) => setEmail(e.target.value)}

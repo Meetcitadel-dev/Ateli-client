@@ -5,63 +5,68 @@
 @layer base {
   :root {
     /* Background & Surfaces */
-    --background: 0 0% 0%; /* Black */
-    --foreground: 0 0% 100%; /* White Text */
-    
-    --card: 0 0% 7%; /* Dark Grey */
+    --background: 0 0% 0%;
+    /* Black */
+    --foreground: 0 0% 100%;
+    /* White Text */
+
+    --card: 0 0% 7%;
+    /* Dark Grey */
     --card-foreground: 0 0% 100%;
-    
+
     --popover: 0 0% 7%;
     --popover-foreground: 0 0% 100%;
-    
+
     /* Primary - #CCF043 */
     --primary: 73 86% 60%;
-    --primary-foreground: 0 0% 0%; /* Black text on lime */
-    
+    --primary-foreground: 0 0% 0%;
+    /* Black text on lime */
+
     /* Secondary - Medium Grey */
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 100%;
-    
+
     /* Muted */
     --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 63%; /* Grey text */
-    
+    --muted-foreground: 0 0% 63%;
+    /* Grey text */
+
     /* Accent - Lime */
     --accent: 73 86% 60%;
     --accent-foreground: 0 0% 0%;
-    
+
     /* Semantic Colors */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 48 96% 53%;
     --warning-foreground: 0 0% 0%;
-    
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    
+
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
-    
+
     /* Border & Input */
     --border: 0 0% 18%;
     --input: 0 0% 18%;
     --ring: 73 86% 60%;
-    
+
     --radius: 0.75rem;
-    
+
     /* Chat-specific colors */
     --chat-bubble-sent: 73 86% 60%;
     --chat-bubble-sent-foreground: 0 0% 0%;
     --chat-bubble-received: 0 0% 12%;
     --chat-bubble-received-foreground: 0 0% 100%;
-    
+
     /* Order status colors */
     --status-pending: 48 96% 53%;
     --status-approved: 142 76% 36%;
     --status-rejected: 0 84% 60%;
     --status-delivered: 199 89% 48%;
-    
+
     /* Sidebar */
     --sidebar-background: 0 0% 4%;
     --sidebar-foreground: 0 0% 90%;
@@ -119,21 +124,21 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: hsl(var(--muted-foreground) / 0.3);
     border-radius: 3px;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.5);
   }
@@ -145,6 +150,7 @@
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -156,6 +162,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -167,6 +174,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -174,9 +182,12 @@
 }
 
 @keyframes pulse-subtle {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.7;
   }
@@ -196,4 +207,81 @@
 
 .animate-pulse-subtle {
   animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Order celebration animations */
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0);
+  }
+
+  10% {
+    opacity: 1;
+    transform: translate(var(--x, 0), var(--y, -100px)) rotate(180deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(var(--x, 0), 300px) rotate(720deg) scale(0.5);
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px) scale(1);
+    opacity: 0.3;
+  }
+
+  50% {
+    transform: translateY(-20px) scale(1.5);
+    opacity: 0.6;
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Timeline connector line */
+@keyframes timeline-fill {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: 100%;
+  }
+}
+
+.animate-timeline-fill {
+  animation: timeline-fill 0.5s ease-out forwards;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.animate-dash {
+  animation: dash 1s linear infinite;
 }
