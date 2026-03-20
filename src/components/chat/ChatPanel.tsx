@@ -966,47 +966,47 @@ export function ChatPanel() {
                   onSubmit={handleSendMessage}
                   className="max-w-4xl mx-auto flex items-end gap-3"
                 >
-                  <div className="flex-1 bg-card rounded-2xl flex flex-col md:flex-row md:items-center px-4 md:px-6 py-3 md:py-4 shadow-sm border border-border focus-within:ring-1 focus-within:ring-primary/40 transition-all gap-2 min-h-[56px]">
+                  <div className="flex-1 bg-card rounded-2xl flex items-center px-3 md:px-6 py-2 md:py-4 shadow-sm border border-border focus-within:ring-1 focus-within:ring-primary/40 transition-all gap-2 min-h-[44px]">
                     <Textarea
                       ref={inputRef}
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder={isAdmin ? `Message ${activeUser?.name || 'user'}...` : "Message Ateli Support..."}
-                      className="border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 placeholder:text-muted-foreground w-full text-base text-foreground leading-normal min-h-[24px] max-h-[200px] resize-none overflow-hidden"
+                      className="border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 placeholder:text-muted-foreground w-full text-sm md:text-base text-foreground leading-normal min-h-[20px] max-h-[150px] resize-none overflow-hidden"
                       rows={1}
                     />
                     {!inputValue.trim() && (
-                      <div className="flex items-center justify-end md:justify-start gap-1 mt-1 md:mt-0">
+                      <div className="flex items-center gap-0.5 md:gap-1">
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-9 w-9 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
+                          className="h-8 w-8 md:h-9 md:w-9 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
                           onClick={() => fileInputRef.current?.click()}
                           title="Attach Image"
                         >
-                          <Paperclip className="w-5 h-5" />
+                          <Paperclip className="w-4 h-4 md:w-5 md:h-5" />
                         </Button>
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-9 w-9 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
+                          className="h-8 w-8 md:h-9 md:w-9 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
                           onClick={sendLocation}
                           title="Share Location"
                         >
-                          <MapPin className="w-5 h-5" />
+                          <MapPin className="w-4 h-4 md:w-5 md:h-5" />
                         </Button>
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-9 w-9 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
+                          className="h-8 w-8 md:h-9 md:w-9 text-muted-foreground hover:bg-muted rounded-xl transition-colors shrink-0"
                           onClick={startRecording}
                           title="Voice Message"
                         >
-                          <Mic className="w-5 h-5" />
+                          <Mic className="w-4 h-4 md:w-5 md:h-5" />
                         </Button>
                       </div>
                     )}
