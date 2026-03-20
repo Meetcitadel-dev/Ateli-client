@@ -36,3 +36,4 @@ test-*.js
 *.json
 !package.json
 !tsconfig.json
+!src/data/*.json
