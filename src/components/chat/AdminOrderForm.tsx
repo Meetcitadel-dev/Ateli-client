@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Plus, ShoppingCart, Check, ChevronsUpDown } from 'lucide-react';
 import { STANDARDIZED_PRODUCTS } from '@/data/inventory';
+import PRODUCT_PRICES from '@/data/product_prices.json';
 import {
     Command,
     CommandEmpty,
@@ -162,6 +163,13 @@ export function AdminOrderForm({ onSubmit, onSubmitCart, onCancel, initialItems 
                                                         value={product}
                                                         onSelect={(currentValue) => {
                                                             setSelectedProductName(currentValue);
+                                                            // Auto-fetch price from excel data
+                                                            const fetchedPrice = (PRODUCT_PRICES as any)[currentValue];
+                                                            if (fetchedPrice !== undefined) {
+                                                                setPrice(fetchedPrice.toString());
+                                                            } else {
+                                                                setPrice("");
+                                                            }
                                                             setOpen(false);
                                                         }}
                                                         className="text-xs py-2.5 cursor-pointer hover:bg-primary/10"
@@ -196,7 +204,11 @@ export function AdminOrderForm({ onSubmit, onSubmitCart, onCancel, initialItems 
                                 placeholder="0.00"
                                 value={price}
                                 onChange={(e) => setPrice(e.target.value)}
-                                className="h-11 bg-card/50 focus-visible:ring-primary/50"
+                                disabled={!isCustom}
+                                className={cn(
+                                    "h-11 focus-visible:ring-primary/50",
+                                    !isCustom ? "bg-muted/50 font-bold text-primary" : "bg-card/50"
+                                )}
                             />
                         </div>
                         <div className="space-y-3">
