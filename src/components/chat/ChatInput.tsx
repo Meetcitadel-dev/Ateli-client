@@ -19,7 +19,7 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
       onSendMessage(message.trim(), 'text');
       setMessage('');
       if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = '40px';
       }
     }
   };
@@ -35,8 +35,9 @@ export function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
     setMessage(e.target.value);
     // Auto-resize textarea
     const textarea = e.target;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+    textarea.style.height = '0px';
+    const newHeight = Math.max(40, Math.min(textarea.scrollHeight, 120));
+    textarea.style.height = `${newHeight}px`;
   };
 
   return (

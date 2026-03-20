@@ -202,31 +202,47 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const sendMessage = useCallback(async (content: string, type: ChatMessage['type'] = 'text', extra?: any) => {
         if (!currentProject || !user) return;
 
-        const isAdmin = user.id === 'admin-user' || user.role === 'admin' || user.email?.includes('admin');
+        // Use explicitly passed view context if available, else static check
+        const isActuallyAdmin = extra?.isFromAteli !== undefined 
+            ? extra.isFromAteli 
+            : (user.id === 'admin-user' || user.role === 'admin' || user.email?.includes('admin'));
 
         let targetId = user.id; // Default to self (Client)
-        if (isAdmin) {
-            if (!activeUserId) {
-                console.error("Cannot send message: No active user selected by admin");
-                return;
-            }
-            targetId = activeUserId;
-        }
+        let finalChatId = `chat-${currentProject.id}-${targetId}`;
 
-        const chatId = `chat-${currentProject.id}-${targetId}`;
+        if (isActuallyAdmin) {
+            if (activeUserId) {
+                targetId = activeUserId;
+                finalChatId = `chat-${currentProject.id}-${targetId}`;
+            } else {
+                // If no active user, find a default client member to send the message to
+                const defaultMember = currentProject.members.find(m => m.userId !== user.id && m.userId !== 'admin-user');
+                if (defaultMember) {
+                    targetId = defaultMember.userId;
+                    finalChatId = `chat-${currentProject.id}-${targetId}`;
+                } else {
+                    // Fallback to legacy project broadcast
+                    finalChatId = `chat-${currentProject.id}`;
+                }
+            }
+        } else {
+            // Force client mode target ID
+            targetId = user.id;
+            finalChatId = `chat-${currentProject.id}-${targetId}`;
+        }
 
         const newMessage: ChatMessage = {
             id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            chatId: chatId,
+            chatId: finalChatId,
             senderId: user.id,
             senderName: user.name || 'User',
             senderAvatar: user.avatar,
             content,
             type,
             timestamp: new Date(),
-            isFromAteli: isAdmin, // or true if admin
+            isFromAteli: isActuallyAdmin,
             isRead: true,
-            recipientId: isAdmin ? targetId : undefined, // Optional, useful for backend
+            recipientId: isActuallyAdmin ? targetId : undefined,
             ...extra
         };
 
